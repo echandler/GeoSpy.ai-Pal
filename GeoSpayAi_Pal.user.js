@@ -1,4 +1,3 @@
-// ==UserScript==
 // @name         GeoSpy.ai Pal 
 // @description  Play GeoGuessr with an AI pal! 
 // @namespace    AI scripts 
@@ -7,7 +6,7 @@
 // @match        https://www.geoguessr.com/*
 // @grant        none
 // @run-at       document-start
-// @updateURL    
+// @downloadURL  https://github.com/echandler/GeoSpy.ai-Pal/raw/main/GeoSpayAi_Pal.user.js 
 // @copyright    2024 echandler
 // @license      MIT
 // @noframes
@@ -144,6 +143,7 @@
                     if (!m.classList) break;
 
                     const classListString = m.classList.toString();
+                    console.log(classListString);
                     const resultLayout = m.classList.length < 3 && /result/.test(classListString); 
                     if (resultLayout){
                         //leaving result page.
@@ -176,11 +176,16 @@
                         }
                     }
 
-                    const isDuelsResulst = /overlay_backdrop/.test(classListString);
+                   // const isDuelsResulst = /overlay_backdrop/.test(classListString);
                     
-                    if (isDuelsResulst){
-                        //alert("leaving is duels result")
-                    }
+                   // if (isDuelsResulst){
+                   //     //alert("leaving is duels result")
+                   // }
+                   const isDuelsNewGame = /round-score_container/.test(classListString);
+                   if (isDuelsNewGame){
+                        google.maps.event.trigger(state.GoogleMapsObj, 'duals new round');
+                   }
+                    
                 }
             }
 
@@ -311,11 +316,6 @@
                             google.maps.event.trigger(state.GoogleMapsObj, "duels game finished");
                         }
                         return;
-                    }
-
-                    const dualsNewRound = /new-round_roundInfo/.test(classListString);
-                    if (dualsNewRound){
-                        google.maps.event.trigger(state.GoogleMapsObj, 'duals new round');
                     }
                 }
             }
