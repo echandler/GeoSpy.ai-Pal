@@ -2,7 +2,7 @@
 // @name         GeoSpy.ai Pal 
 // @description  Play GeoGuessr with an AI pal! 
 // @namespace    AI scripts 
-// @version      0.0.8
+// @version      0.0.9
 // @author       echandler
 // @match        https://www.geoguessr.com/*
 // @grant        none
@@ -642,57 +642,62 @@
         AI_layout.style.cssText = `position: absolute; margin-top: 0px; right: 2em; top: 4em; pointer-events:all;visibility:hidden;`;
         
         AI_header.innerHTML = `<p>GeoSpy.ai Pal</p>`;
-        
-        AI_layout.childNodes.forEach( (el, idx) => {
-            const _id = state._id++;
-
-            let score = "?";
-            let distance = "?";
-
-            if(state.AI_PLAYER.rounds[idx]){
-                let round =state.AI_PLAYER.rounds[idx]; 
-                score = round.points;
-                distance = round.distance;
-
-            } else if (/total/i.test(el.innerHTML)){
-                const totals = state.AI_PLAYER.rounds.reduce((acc, curval, idx, array) => {
-                    if (!curval) {
-                        return acc;
-                    }
-                    return [acc[0] + curval.points, acc[1] + curval.distance];
-                }, [0, 0]);
-                
-                score = totals[0];
-                distance = totals[1];
-            }
-            
-            el.querySelector(`div[class*="list_points"]`).innerHTML = score.toLocaleString() + " pts";
-
-            const roundInfoEL = el.querySelector(`div[class*="list_roundInfo"]`);
-            const unit = /miles/.test(roundInfoEL.innerHTML)? "miles": "km";
-
-            if (distance != "?"){
-                distance = convertDistanceTo(distance, unit);
-                distance.distance = parseFloat(distance.distance.toFixed(2)).toLocaleString();
-            }
-
-            roundInfoEL.innerHTML = `${distance.distance} ${distance.unit}`;
-        });
-
-        //state.AI_PLAYER.rounds.forEach( (el, idx) => makeFinalResultsPageMarkers(el, dragEndCb, ));
-        state.AI_PLAYER.rounds.forEach( (round, idx) => {
-            showAIGuess_normalResultPage_marker(round, dragEndCb, true, false);
-        });
-
-        function dragEndCb(el){
-            AI_header.remove();
-            AI_layout.remove();
-
-            _showAIGuess_standard_finalResultsPage();
-        }
 
         layout.parentElement.appendChild(AI_layout);
         layout.parentElement.appendChild(AI_header);
+        
+        function updateScoreBoard(){
+            AI_layout.childNodes.forEach((el, idx) => {
+                const _id = state._id++;
+
+                let score = "?";
+                let distance = "?";
+
+                if (state.AI_PLAYER.rounds[idx]) {
+                    let round = state.AI_PLAYER.rounds[idx];
+                    score = round.points;
+                    distance = round.distance;
+
+                } else if (/total/i.test(el.innerHTML)) {
+                    const totals = state.AI_PLAYER.rounds.reduce((acc, curval, idx, array) => {
+                        if (!curval) {
+                            return acc;
+                        }
+                        return [acc[0] + curval.points, acc[1] + curval.distance];
+                    }, [0, 0]);
+
+                    score = totals[0];
+                    distance = totals[1];
+                }
+
+                el.querySelector(`div[class*="list_points"]`).innerHTML = score.toLocaleString() + " pts";
+
+                const roundInfoEL = el.querySelector(`div[class*="list_roundInfo"]`);
+                const unit = /miles/.test(roundInfoEL.innerHTML) ? "miles" : "km";
+
+                if (distance != "?") {
+                    distance = convertDistanceTo(distance, unit);
+                    distance.distance = parseFloat(distance.distance.toFixed(2)).toLocaleString();
+                }
+
+                roundInfoEL.innerHTML = `${distance.distance} ${distance.unit}`;
+            });
+
+            //state.AI_PLAYER.rounds.forEach( (el, idx) => makeFinalResultsPageMarkers(el, dragEndCb, ));
+            state.AI_PLAYER.rounds.forEach( (round, idx) => {
+                showAIGuess_normalResultPage_marker(round, dragEndCb, true, false);
+            });
+        }
+
+        updateScoreBoard();
+
+        function dragEndCb(el){
+          updateScoreBoard();
+          //  AI_header.remove();
+          //  AI_layout.remove();
+
+          //  _showAIGuess_standard_finalResultsPage();
+        }
 
         setTimeout(()=>{
             // So that it doesn't trip up the observer and go into an infinite loop.
