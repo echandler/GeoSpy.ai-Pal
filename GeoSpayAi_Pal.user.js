@@ -1,7 +1,8 @@
+// ==UserScript==
 // @name         GeoSpy.ai Pal 
 // @description  Play GeoGuessr with an AI pal! 
 // @namespace    AI scripts 
-// @version      0.0.5
+// @version      0.0.7
 // @author       echandler
 // @match        https://www.geoguessr.com/*
 // @grant        none
@@ -23,9 +24,10 @@
 
     window.showAltsArray = [];
 
-    const sesh = sessionStorage['aipal']? JSON.parse(sessionStorage['aipal']): null;
+    const sesh = localStorage['aipal']? JSON.parse(localStorage['aipal']): null;
     if (sesh){
-        state.AI_PLAYER = sesh.AI_PLAYER;
+        //state.AI_PLAYER = sesh.AI_PLAYER;
+        state.AI_PLAYER = sesh[getMapId()];
     }
 
     function overrideOnLoad(googleScript, observer, overrider) {
@@ -91,10 +93,13 @@
 
                             state.curPanoId = this.getPano();
 
-                            if (!state.curPanoId || state.curPanoId.length !== 22){
-                                newAlert("Can't get pano id. It's not going to work for this round.");
+                            if (!state?.curPanoId || state?.curPanoId?.length !== 22){
+                                if (state?.curPanoId && state?.curPanoId?.length !== 22){
+                                    newAlert("Doesn't appear to be official coverage. It's not going to work for this round.");
+                                }
                                 return;
                             }
+
                             state.curLatLng = this.position.toJSON();
 
                             state.needToTalkToAi = false;
@@ -102,8 +107,6 @@
 
                             talkToAi(state.curPanoId);
                         }
-                        console.log(state)
-
                     });
                 }
             };
@@ -123,7 +126,6 @@
            
                     this.addListener('click', (e) => {
                         state.playerMapClickPos = e.latLng.toJSON();
-
                     });
                     
                 }
@@ -143,16 +145,17 @@
                     if (!m.classList) break;
 
                     const classListString = m.classList.toString();
-                    console.log(classListString);
                     const resultLayout = m.classList.length < 3 && /result/.test(classListString); 
+                  
                     if (resultLayout){
                         //leaving result page.
                         state.onResultPage = false;
+                        google.maps.event.trigger(state.GoogleMapsObj, "remove all markers");
                         google.maps.event.trigger(state.GoogleMapsObj, "leaving result page");
                     }
+                     
                     if (m.classList.length < 3 && /in-game_background/i.test(classListString)){
                         // Possibly starting new game.
-                        //alert("added" + m.getAttribute('data-qa'))
                         const onResultPage =document.body.querySelector("[class*='result']"); 
                         state.onResultPage = onResultPage? true: false;
 
@@ -176,11 +179,6 @@
                         }
                     }
 
-                   // const isDuelsResulst = /overlay_backdrop/.test(classListString);
-                    
-                   // if (isDuelsResulst){
-                   //     //alert("leaving is duels result")
-                   // }
                    const isDuelsNewGame = /round-score_container/.test(classListString);
                    if (isDuelsNewGame){
                         google.maps.event.trigger(state.GoogleMapsObj, 'duals new round');
@@ -268,7 +266,7 @@
                     const isDuelsResulst = /overlay_backdrop/.test(classListString);
 
                     if (onPartyPage){
-                        newAlert("Are you being naughty?") 
+                        newAlert("Are you being naughty?", "check") 
                         //alert('on party')
                     }
                     
@@ -331,140 +329,195 @@
         google.maps.event.addListener(state.GoogleMapsObj, "end game", endOfGame);
         google.maps.event.addListener(state.GoogleMapsObj, "result page", onResultPageFn);
         google.maps.event.addListener(state.GoogleMapsObj, "AI response finished", updateAICurRound );
-        google.maps.event.addListener(state.GoogleMapsObj, "AI response finished", waitToUpdateDuelsGame );
-        google.maps.event.addListener(state.GoogleMapsObj, "showing duels timer", updateDuelsTimer );
-        google.maps.event.addListener(state.GoogleMapsObj, "duels game finished", duelsGameFinished );
+        google.maps.event.addListener(state.GoogleMapsObj, "AI response finished", duals.waitToUpdateDuelsGame );
+        google.maps.event.addListener(state.GoogleMapsObj, "showing duels timer", duals.updateDuelsTimer );
+        google.maps.event.addListener(state.GoogleMapsObj, "duels game finished", duals.duelsGameFinished );
         google.maps.event.addListener(state.GoogleMapsObj, "standard game final score page", showAIGuess_standard_finalResultsPage );
         google.maps.event.addListener(state.GoogleMapsObj, "challenge game final score page", ()=> setTimeout(showAIGuess_challenge_finalResultsPage, 1000) );
+
+      //  google.maps.event.addListener(state.GoogleMapsObj, "new round", fortests.unHidePage);
+      //  google.maps.event.addListener(state.GoogleMapsObj, "result page", fortests.hidePage);
+      //  google.maps.event.addListener(state.GoogleMapsObj, "AI response finished", fortests.putMarkerOnMap);
     }
     
-    function duelsGameFinished(){
-        // Reset game number for next game.
-        duelsLastRoundNum = null;
+    const fortests = {
+        unHidePage: function (){
 
-        setTimeout(()=>{
-            document.body.querySelectorAll('a').forEach(async btn => {
-                    if (!/continue/i.test(btn.innerText)) return;
-//                    setTimeout(() => btn.click(), 3000);
+            document.body.style.visibility = '';
+            try{ 
+            document.body.querySelector('div[class*="round-result_distanceIndicatorWrapper"]').style.visibility = "";
+            document.body.querySelector('div[class*="round-result_pointsIndicatorWrapper"]').style.visibility = "";
+            } catch(e){}
+        },
+
+        hidePage: function (){
+            document.body.style.visibility = 'hidden';
+            try{ 
+            document.body.querySelector('div[class*="round-result_distanceIndicatorWrapper"]').style.visibility = "hidden";
+            document.body.querySelector('div[class*="round-result_pointsIndicatorWrapper"]').style.visibility = "hidden";
+
+            alert('Hidding Results page!')
+            } catch(e){}
+        },
+
+        putMarkerOnMap: function (curGuess){
+
+            try{
+                // Show marker, but it will error out when it tries to find score nodes for standard game.
+                // I don't want to make a marker function just for duals...yet.
+                const listener2 = google.maps.event.addListener(state.GoogleMapsObj, "duals new round", ()=>{
+                    google.maps.event.trigger(state.GoogleMapsObj, "remove all markers");
+                    google.maps.event.removeListener(listener2);
                 });
-        }, 3000);
-    }
 
-    function updateDuelsTimer(curGuess){
-    // TODO: Do something here.
-    }
+                state.GoogleMapsObj.setZoom(10);
+                state.GoogleMapsObj.setCenter(curGuess.latLng || curGuess.countryLatLng);
 
-    function waitToUpdateDuelsGame(curGuess){
-        if (!isDuelsGame()) return;
+                showAIGuess_normalResultPage(curGuess, "ignore result page state", "don't change bounds");
+            } catch(e){}
 
-        if (state.gameInfo.currentRoundNumber != curGuess.curRound) {
-            newAlert("Couldn't guess in time.");
-            return;
         }
+    };
+     
+    const duals = {
 
-        let stillOnResultsPage = document.body.querySelector('div[class*="overlay_backdrop"]');
-        if (stillOnResultsPage){
-            setTimeout(()=> waitToUpdateDuelsGame(curGuess), 1000);
-            newAlert("still on results page");
-            return;
-        } 
-        
-        try{
-            // Show marker, but it will error out when it tries to find score nodes for standard game.
-            // I don't want to make a marker function just for duals...yet.
-            const listener2 = google.maps.event.addListener(state.GoogleMapsObj, "duals new round", ()=>{
-                google.maps.event.trigger(state.GoogleMapsObj, "remove all markers");
-                google.maps.event.removeListener(listener2);
+        duelsGameFinished: function () {
+            // Reset game number for next game.
+            duelsLastRoundNum = null;
+
+            setTimeout(() => {
+                document.body.querySelectorAll('a').forEach(async btn => {
+                    if (!/continue/i.test(btn.innerText)) return;
+                    //                    setTimeout(() => btn.click(), 3000);
+                });
+            }, 3000);
+        },
+
+        updateDuelsTimer: function (curGuess) {
+            // TODO: Do something here.
+        },
+
+        waitToUpdateDuelsGame: function (curGuess) {
+            if (!isDuelsGame()) return;
+
+            if (state.gameInfo.currentRoundNumber != curGuess.curRound) {
+                newAlert("Couldn't guess in time.");
+                return;
+            }
+
+            let stillOnResultsPage = document.body.querySelector('div[class*="overlay_backdrop"]');
+            if (stillOnResultsPage) {
+                setTimeout(() => duals.waitToUpdateDuelsGame(curGuess), 1000);
+                newAlert("Still on results page");
+                return;
+            }
+
+            try {
+                // Show marker, but it will error out when it tries to find score nodes for standard game.
+                // I don't want to make a marker function just for duals...yet.
+                const listener2 = google.maps.event.addListener(state.GoogleMapsObj, "duals new round", () => {
+                    google.maps.event.trigger(state.GoogleMapsObj, "remove all markers");
+                    google.maps.event.removeListener(listener2);
+                });
+
+                state.GoogleMapsObj.setZoom(3);
+                state.GoogleMapsObj.setCenter(curGuess.latLng || curGuess.countryLatLng);
+
+                showAIGuess_normalResultPage(curGuess, "ignore result page state", "don't change bounds");
+            } catch (e) { }
+
+            if (document.querySelector('[class*="clock-timer"]')) {
+                duals.updateDuelsGame(curGuess);
+                return;
+            }
+
+            const listener1 = google.maps.event.addListener(state.GoogleMapsObj, "showing duels timer", () => {
+                clearTimeout(_timer);
+                google.maps.event.removeListener(listener1);
+                setTimeout(() => duals.updateDuelsGame(curGuess), 3000 + (Math.random() * 5000));
             });
 
-            state.GoogleMapsObj.setZoom(3);
-            state.GoogleMapsObj.setCenter(curGuess.latLng || curGuess.countryLatLng);
+            const randomTime = 4000 + (Math.random() * 10000);
 
-            showAIGuess_normalResultPage(curGuess, "ignore result page state", "don't change bounds");
-        } catch(e){}
+            newAlert(`Will make guess in ${(randomTime / 1000).toFixed(1)} seconds!`);
 
-        if (document.querySelector('[class*="clock-timer"]')){
-            updateDuelsGame(curGuess);
-            return;
-        }
+            const _timer = setTimeout(() => {
+                // Give some "realism" by not making the guess immediately.
+                google.maps.event.removeListener(listener1);
+                duals.updateDuelsGame(curGuess);
+            }, randomTime);
+        },
 
-        const listener1 = google.maps.event.addListener(state.GoogleMapsObj, "showing duels timer", ()=>{
-            clearTimeout(_timer);
-            google.maps.event.removeListener(listener1);
-            setTimeout( ()=> updateDuelsGame(curGuess), 3000  + (Math.random() * 5000));
-        });
+        updateDuelsGame: function (curGuess) {
+            if (!isDuelsGame()) return
 
-        const randomTime =4000 + (Math.random() * 10000); 
+            if (state.gameInfo.currentRoundNumber === duelsLastRoundNum || duelsLastRoundNum === null) {
+                state.gameInfo.currentRoundNumber++;
+                duelsLastRoundNum = state.gameInfo.currentRoundNumber;
+            } else {
+                alert("Something happened: wrong round number. Can't make guess.")
+                return;
+            }
 
-        newAlert(`Will make guess in ${(randomTime/1000).toFixed(1)} seconds!`);
+            const message = curGuess?.json?.message;
 
-        const _timer = setTimeout(()=>{
-            // Give some "realism" by not making the guess immediately.
-            google.maps.event.removeListener(listener1);
-            updateDuelsGame(curGuess);
-        }, randomTime);
-    }
-    
-    function updateDuelsGame(curGuess){
-        if (!isDuelsGame()) return
+            if (!curGuess.latLng && !curGuess.countryLatLng) {
+                newAlert("Couldn't find coordinates in response.");
+                if (message) {
+                    newAlert("Check Dev tools console for AI response.");
+                }
+                return;
+            } else {
+                duals.duelsSendGuessToServer(curGuess.latLng || curGuess.countryLatLng, curGuess.curRound);
+            }
 
-        if (state.gameInfo.currentRoundNumber === duelsLastRoundNum || duelsLastRoundNum === null){
-            state.gameInfo.currentRoundNumber++;
-            duelsLastRoundNum = state.gameInfo.currentRoundNumber; 
-        } else {
-            alert("Something happened: wrong round number. Can't make guess.")
-            return;
-        }
+            if (message) {
+                console.log("AI RESPONSE:", curGuess.json.message);
+            }
+        },
 
-        const message = curGuess?.json?.message;
+        duelsSendGuessToServer: async function (latLng, roundNumber) {
+            let gameId = location.pathname.split("/")[2];
 
-        if (!curGuess.latLng && !curGuess.countryLatLng){
-            newAlert("Couldn't find coordinates in response.");
-            if (message){
-                newAlert("Check Dev tools console for AI response.");
-            } 
-            return;
-        } else {
-            placeMarkerOnMapAndMakeGuess(curGuess.latLng || curGuess.countryLatLng, curGuess.curRound);
-        }
+            if (!roundNumber) {
+                newAlert("Something is wrong, can't see round number.");
+                newAlert("Can't make guess right now.");
+                return;
+            }
 
-        if (message) {
-            console.log("AI RESPONSE:", curGuess.json.message);
-        }
-    }
-    
-    async function placeMarkerOnMapAndMakeGuess(latLng, roundNumber){
-        let gameId = location.pathname.split("/")[2];
-       
-        if (!roundNumber){
-            newAlert("Something is wrong, can't see round number.");
-            newAlert("Can't make guess right now.");
-            return;
-        }
-
-        newAlert("Making guess now!");
-       // return;
-        return await fetch(`https://game-server.geoguessr.com/api/duels/${gameId}/guess`, {
-            "headers": {
-                "accept": "*/*",
-                "accept-language": "en-US,en;q=0.8",
-                "content-type": "application/json",
-                "sec-fetch-dest": "empty",
-                "sec-fetch-mode": "cors",
-                "sec-fetch-site": "same-site",
-                "sec-gpc": "1",
-                "x-client": "web"
-            },
-            "referrer": "https://www.geoguessr.com/",
-            "referrerPolicy": "strict-origin-when-cross-origin",
-            "body": JSON.stringify({ "lat": latLng.lat, "lng": latLng.lng, "roundNumber": roundNumber}), 
-            "method": "POST",
-            "mode": "cors",
-            "credentials": "include"
-        });
-    }
+            newAlert("Making guess now!");
+            // return;
+            return await fetch(`https://game-server.geoguessr.com/api/duels/${gameId}/guess`, {
+                "headers": {
+                    "accept": "*/*",
+                    "accept-language": "en-US,en;q=0.8",
+                    "content-type": "application/json",
+                    "sec-fetch-dest": "empty",
+                    "sec-fetch-mode": "cors",
+                    "sec-fetch-site": "same-site",
+                    "sec-gpc": "1",
+                    "x-client": "web"
+                },
+                "referrer": "https://www.geoguessr.com/",
+                "referrerPolicy": "strict-origin-when-cross-origin",
+                "body": JSON.stringify({ "lat": latLng.lat, "lng": latLng.lng, "roundNumber": roundNumber }),
+                "method": "POST",
+                "mode": "cors",
+                "credentials": "include"
+            });
+        },
+    };
 
     function showAIGuess_challenge_finalResultsPage(){
+        google.maps.event.trigger(state.GoogleMapsObj, "remove all markers");
+        state.AI_PLAYER.rounds.forEach( (round, idx) => {
+            if (!round?.infoWindowOpened) return;
+            round.infoWindowOpened = false;
+        });
+        _showAIGuess_challenge_finalResultsPage();
+    }
+
+    function _showAIGuess_challenge_finalResultsPage(){
         const table = document.querySelector(`div[class*="results_table"]`);
         const firstRow = table.children[2];
         const AI_row = firstRow.cloneNode(true);
@@ -487,7 +540,7 @@
                 google.maps.event.trigger(state.GoogleMapsObj, "remove all markers");
            } else{
                AI_row.remove();
-               showAIGuess_challenge_finalResultsPage();
+               _showAIGuess_challenge_finalResultsPage();
            } 
            
         });
@@ -509,26 +562,29 @@
 
         AI_resultsPos.innerText = "01."
         
+    function updateChallengeInfo(){              
         const totals = state.AI_PLAYER.rounds.reduce((acc, curval, idx, array) => {
             if (!curval) {
                 return acc;
             }
             return [acc[0] + curval.points, acc[1] + curval.distance];
         }, [0, 0]);
-                
+
         AI_scoreDetails.forEach((el, idx) =>{
+            const _innerText = el.innerText;
+
             el.innerText = "?"; 
 
             if (idx === 5){
                 // Total element
-                const unit = /miles/i.test(el.innerText);
+                const unit = /miles/i.test(_innerText);
 
                 const converted = convertDistanceTo(totals[1], unit? "miles": "km");
 
                 el.innerText = `${Math.round(converted.distance).toLocaleString()} ${converted.unit}`;
 
             } else if (state.AI_PLAYER.rounds[idx]){
-                const unit = /miles/i.test(el.innerText);
+                const unit = /miles/i.test(_innerText);
                 const converted = convertDistanceTo(state.AI_PLAYER.rounds[idx].distance, unit? "miles": "km");
                 el.innerText = `${Math.round(converted.distance).toLocaleString()} ${converted.unit}`;
             }
@@ -547,30 +603,32 @@
             }
         });
       
+        state.AI_PLAYER.rounds.forEach( (round, idx) => {
+            showAIGuess_normalResultPage_marker(round, dragEndCb, true, false);
+        });
+    }
+        updateChallengeInfo();
+
         table.insertBefore(AI_row, firstRow);
         
         AI_row.addEventListener('click', ()=>{
            // TODO: what was this for? 
         });
 
-        google.maps.event.trigger(state.GoogleMapsObj, "remove all markers");
-
-        state.AI_PLAYER.rounds.forEach( (el, idx) => makeFinalResultsPageMarkers(el, idx, dragEndCb.bind(null, el)));
-
         function dragEndCb(el){
-            AI_row.remove();
-
-            el.latLngNeg = false;
-
-            google.maps.event.trigger(state.GoogleMapsObj, `remove all round markers`);
-
-            updateAICurRound(el, el.marker.getPosition().toJSON());
-
-            showAIGuess_challenge_finalResultsPage();
+            //AI_row.remove();
+            updateChallengeInfo();
+           // _showAIGuess_challenge_finalResultsPage();
         }
     } // End showAIGuess_challenge_finalResultsPage
 
     function showAIGuess_standard_finalResultsPage(){
+        google.maps.event.trigger(state.GoogleMapsObj, "remove all markers");
+        state.AI_PLAYER.rounds.forEach( (round, idx) => round.infoWindowOpened = false);
+        _showAIGuess_standard_finalResultsPage();
+    }
+
+    function _showAIGuess_standard_finalResultsPage(){
         const layout = document.querySelector('div[class*="list_listWrapper"]');
         const header = document.querySelector('div[class*="list_mapAndSettingsWrapper"]');
         const AI_layout = layout.cloneNode(true);
@@ -609,7 +667,6 @@
             }
             
             el.querySelector(`div[class*="list_points"]`).innerHTML = score.toLocaleString() + " pts";
-            
 
             const roundInfoEL = el.querySelector(`div[class*="list_roundInfo"]`);
             const unit = /miles/.test(roundInfoEL.innerHTML)? "miles": "km";
@@ -622,20 +679,16 @@
             roundInfoEL.innerHTML = `${distance.distance} ${distance.unit}`;
         });
 
-        google.maps.event.trigger(state.GoogleMapsObj, "remove all markers");
-        state.AI_PLAYER.rounds.forEach( (el, idx) => makeFinalResultsPageMarkers(el, idx, dragEndCb.bind(null, el)));
+        //state.AI_PLAYER.rounds.forEach( (el, idx) => makeFinalResultsPageMarkers(el, dragEndCb, ));
+        state.AI_PLAYER.rounds.forEach( (round, idx) => {
+            showAIGuess_normalResultPage_marker(round, dragEndCb, true, false);
+        });
 
         function dragEndCb(el){
             AI_header.remove();
             AI_layout.remove();
 
-            el.latLngNeg = false;
-
-            google.maps.event.trigger(state.GoogleMapsObj, `remove final round markers`);
-
-            updateAICurRound(el, el.marker.getPosition().toJSON());
-
-            showAIGuess_standard_finalResultsPage();
+            _showAIGuess_standard_finalResultsPage();
         }
 
         layout.parentElement.appendChild(AI_layout);
@@ -648,87 +701,6 @@
         }, 100);
     } // End showAIGuess_standard_finalResultsPage
     
-    function makeFinalResultsPageMarkers (round, idx, dragEndCb) { 
-        if (!round) return;
-
-        const _id = state._id++;
-
-        let markerPos = bermudaTriangleCoords; 
-        let infoWindowContent = '';
-
-        if (!round?.latLng && !round?.countryLatLng){
-            newAlert(`Could not find country name or coordinates for round ${round.curRound}`)
-        } else {
-            markerPos = round.latLng || round.countryLatLng;
-        }
-
-        const marker = new google.maps.Marker({
-            position: markerPos,
-            label: {
-                text: `${idx+1}`,
-                color: '#fff',
-                fontSize: '19px',
-                fontWeight: 'bold',
-                fontFamily: 'var(--default-font)'
-            } , 
-            draggable: true,
-            map: state.GoogleMapsObj,
-        });
-
-        round.marker = marker;
-
-        const infoWindow = new google.maps.InfoWindow({
-            map: state.GoogleMapsObj,
-            content: makeInfoWindowContent(round, drag, dragEndCb, _id),
-            disableAutoPan: true,
-        });
-        
-        let infoWindowOpened = false;
-
-        marker.addListener('click', () => {
-            infoWindowOpened = !infoWindowOpened;
-            infoWindowOpened ?  infoWindow.open({anchor: marker})
-                                : infoWindow.close();
-        });
-
-        google.maps.event.addListener(marker, 'drag', drag);
-        
-        function drag(e) {
-            try{
-                if(document.getElementById("lat"+_id)) return;
-                document.getElementById("lat"+_id).innerText = marker.getPosition().lat().toFixed(6);
-                document.getElementById("lng"+_id).innerText = marker.getPosition().lng().toFixed(6);
-            } catch(e){
-                // Infowindow was closed so elemets were not in DOM.
-            }
-        }
-
-        google.maps.event.addListener(marker, 'dragend', function() {
-            //updateAICurRound(state.AI_PLAYER.rounds[idx], marker.getPosition().toJSON());
-            dragEndCb();
-        });
-
-        const markerListener1 = google.maps.event.addListener(state.GoogleMapsObj, 'remove final round markers', ()=>{
-            google.maps.event.removeListener(markerListener1);
-            marker.setMap(null);
-        });
-
-        const markerListener2 = google.maps.event.addListener(state.GoogleMapsObj, 'new round', ()=>{
-            google.maps.event.removeListener(markerListener2);
-            marker.setMap(null);
-        });
-
-        const markerListener3 = google.maps.event.addListener(state.GoogleMapsObj, 'end game', ()=>{
-            google.maps.event.removeListener(markerListener3);
-            marker.setMap(null);
-        });
-
-        const markerListener4 = google.maps.event.addListener(state.GoogleMapsObj, "remove all markers", () => {
-            google.maps.event.removeListener(markerListener4); 
-            marker.setMap(null);
-        });
-    }
-
     async function newRoundFn(){
         if (!state?.gameInfo){
             // Get inital game info from __NEXT__DATA__ maybe because player refreshed on a challenge games.
@@ -754,31 +726,20 @@
     }
 
     async function onResultPageFn(){
-        //alert('new result page') 
         state.needToTalkToAi = true;     
         state.curPanoId = null; 
         state.curLatLng = null; 
     }
     
-    function showAIGuess_normalResultPage(curGuess, ignoreResultPageState, dontChangeBounds){
-        const _id = state._id++;
-
-       if (!ignoreResultPageState && !state.onResultPage) return;
-
-       if (!curGuess){
-           newAlert("Can't find round");
+    function showAIGuess_normalResultPage_marker(curGuess, dragEndCb, dontChangeBounds, showInfoWindowOnCreate){
+       if (!curGuess || !curGuess?.curRound){
+          // newAlert("Can't find round");
            return;
        }
 
-       if (curGuess.state != "Done" && !curGuess.savedRound){
-            const listener = google.maps.event.addListener(state.GoogleMapsObj, "AI response finished", function(){
-                google.maps.event.removeListener(listener);
-                showAIGuess_normalResultPage(curGuess);
-            });
-            return;
-        }
-        
-        let latLng = curGuess.latLng || curGuess.countryLatLng;
+       const _id = state._id++;
+
+        let latLng = curGuess?.latLng || curGuess?.countryLatLng;
         if (!latLng || isNaN(latLng.lat)|| isNaN(latLng.lng)){
             // TODO EC: Change coords to Bermuda triangle?
             latLng = bermudaTriangleCoords;
@@ -792,13 +753,16 @@
             position: latLng,
             map: state.GoogleMapsObj,
             draggable: true,
+            label: {
+                text: `${curGuess.curRound}`,
+                color: '#fff',
+                fontSize: '19px',
+                fontWeight: 'bold',
+                fontFamily: 'var(--default-font)'
+            }, 
         });
-        
-        const _timeout = setTimeout(()=>{
-            infoWindow.close();
-            infoWindowOpened = false;
-        }, 5000);
-        
+
+        curGuess.marker.isDraggin = false;
 
         const infoWindow = new google.maps.InfoWindow({
             map: state.GoogleMapsObj,
@@ -806,30 +770,43 @@
             disableAutoPan: true,
         });
 
-        let infoWindowOpened = true;
+        if (curGuess.infoWindowOpened){
+            infoWindow.open({anchor: curGuess.marker});
+        }
 
-        infoWindow.open({anchor: curGuess.marker});
+        let closeInfoWindowTimeout = null;
+
+        if (curGuess.infoWindowOpened === undefined && showInfoWindowOnCreate){
+            closeInfoWindowTimeout = setTimeout(()=>{
+                infoWindow.close();
+                curGuess.infoWindowOpened = false;
+            }, 5000);
+
+            curGuess.infoWindowOpened = true;
+
+            infoWindow.open({anchor: curGuess.marker});
+        }
 
         if (!dontChangeBounds){
             const _bounds = new google.maps.LatLngBounds();
             _bounds.extend(curGuess.marker.getPosition());
             _bounds.extend(curGuess.svPos);
-            if (state.playerMapClickPos) _bounds.extend(state.playerMapClickPos);
+            if (curGuess.playerMapClickPos) _bounds.extend(curGuess.playerMapClickPos);
 
             setTimeout(()=>{
                 // Don't want battle geoguessr's animation.
                 state.GoogleMapsObj.fitBounds(_bounds);
             }, 1000);
-
         }
 
         curGuess.marker.addListener('click', () => {
-            clearTimeout(_timeout);
+            if (curGuess.marker.isDraggin) return;
+            clearTimeout(closeInfoWindowTimeout);
+            
+            curGuess.infoWindowOpened = !curGuess.infoWindowOpened;
 
-            infoWindowOpened = !infoWindowOpened;
-
-            infoWindowOpened ?  infoWindow.open({anchor: curGuess.marker})
-                                : infoWindow.close();
+            curGuess.infoWindowOpened ? infoWindow.open({anchor: curGuess.marker})
+                                      : infoWindow.close();
         });
 
         google.maps.event.addListener(curGuess.marker, 'drag', drag);
@@ -837,41 +814,87 @@
         function drag(e) {
             try{
                 // infowindow might be closed.
-                clearTimeout(_timeout);
+                curGuess.marker.isDraggin = true;
+                clearTimeout(closeInfoWindowTimeout);
                 const lat = curGuess.marker.getPosition().lat().toFixed(6);
                 const lng = curGuess.marker.getPosition().lng().toFixed(6);
                 document.getElementById("lat"+_id).innerText = lat;
                 document.getElementById("lng"+_id).innerText = lng;
-                document.getElementById("googMapLink"+_id).href =`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`; 
             } catch (e){}
         };
 
         google.maps.event.addListener(curGuess.marker, 'dragend', dragEnd);
 
         function dragEnd(e) {
+            curGuess.marker.isDraggin = false;
+
             const pos = curGuess.marker.getPosition().toJSON();
 
             updateAICurRound(curGuess, pos);
             
-             curGuess.latLngNeg = false;
-             showAIGuess_normalResultPage(curGuess, "ignore result page state", "dont change bounds")
+            curGuess.latLngNeg = false;
+
+            const lat = curGuess.marker.getPosition().lat().toFixed(6);
+            const lng = curGuess.marker.getPosition().lng().toFixed(6);
+            if (document.getElementById("googMapLink"+_id)){
+                document.getElementById("googMapLink"+_id).href =`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`; 
+            } 
+            dragEndCb(e);
         };
         
-        const markerListener2 = google.maps.event.addListener(state.GoogleMapsObj, "end game", () => {
-            google.maps.event.removeListener(markerListener2); 
-            curGuess.marker.setMap(null);
+        const markerListener1 = google.maps.event.addListener(state.GoogleMapsObj, 'remove final round markers', ()=>{
+            google.maps.event.removeListener(markerListener1);
+            marker.setMap(null);
         });
 
-        const markerListener3 = google.maps.event.addListener(state.GoogleMapsObj, "remove all markers", () => {
+        const markerListener2 = google.maps.event.addListener(state.GoogleMapsObj, 'new round', ()=>{
+            google.maps.event.removeListener(markerListener2);
+            marker.setMap(null);
+        });
+
+        const markerListener3 = google.maps.event.addListener(state.GoogleMapsObj, "end game", () => {
             google.maps.event.removeListener(markerListener3); 
             curGuess.marker.setMap(null);
         });
+
+        const markerListener4 = google.maps.event.addListener(state.GoogleMapsObj, "remove all markers", () => {
+            google.maps.event.removeListener(markerListener4); 
+            curGuess.marker.setMap(null);
+        });
+    }
+
+    function showAIGuess_normalResultPage(curGuess, ignoreResultPageState, dontChangeBounds){
+        if (!curGuess) {
+            newAlert("Info. for this round wasn't found.", false, "x");
+            return;
+        }
+
+        if (!ignoreResultPageState && !state.onResultPage) return;
+
+        if (curGuess.state != "Done" && !curGuess.savedRound){
+            const listener = google.maps.event.addListener(state.GoogleMapsObj, "AI response finished", function(){
+                google.maps.event.removeListener(listener);
+                showAIGuess_normalResultPage(curGuess);
+            });
+            return;
+        }
+        
+        if (state.playerMapClickPos){
+            curGuess.playerMapClickPos = state.playerMapClickPos;            
+            saveRounds();
+        }
+
+        showAIGuess_normalResultPage_marker(curGuess, dragEndCb, dontChangeBounds, true);
+        
+        function dragEndCb(e){
+            showAIGuess_normalResultPage(curGuess, "ignore result page state", "dont change bounds")
+        }
 
         let scoreNode = document.body.querySelector('div[class*="round-result_pointsIndicator"]').firstChild;
         let distanceNode = document.body.querySelector('div[class*="round-result_distanceIndicator"]').firstChild;
         let AI_scoreNode = document.getElementById("AI_scoreNode");
         let AI_distanceNode = document.getElementById("AI_distanceNode");
-
+    
         if (!AI_scoreNode){
             AI_scoreNode = scoreNode.cloneNode(true);
             AI_scoreNode.id = "AI_scoreNode";
@@ -881,89 +904,89 @@
             distanceNode.parentElement.appendChild(AI_distanceNode);
         }
 
-        AI_scoreNode.children[0].firstChild.innerHTML = curGuess.points.toLocaleString();
+        AI_scoreNode.children[0].firstChild.innerHTML = curGuess?.points?.toLocaleString() || 0;
         AI_scoreNode.style.textShadow = `0 .25rem 0 #5fbf2e, .125rem .125rem .5rem #8fe945, 0 -.25rem .5rem #3dff51, -.25rem .5rem .5rem #51fe19, 0 .375rem 2rem #45e1e9, 0 0 0 #4562e9, 0 0 1.5rem #4550e9, .25rem .25rem 1rem #3c19fe`;
     
         const unit = /miles/i.test(distanceNode.innerText)? "miles": "km";
-        let distance = convertDistanceTo(curGuess.distance, unit);
-        distance.distance = Math.round(parseFloat(distance.distance.toFixed(2))).toLocaleString();
+        let distance = convertDistanceTo(curGuess?.distance, unit);
+        distance.distance = Math.round(parseFloat(distance?.distance.toFixed(2))).toLocaleString();
 
-        AI_distanceNode.children[0].firstChild.innerHTML = distance.distance; 
+        AI_distanceNode.children[0].firstChild.innerHTML = curGuess?.distance? distance?.distance : "?"; 
         AI_distanceNode.children[0].style.textShadow = AI_scoreNode.style.textShadow;// Distance text node.
         AI_distanceNode.children[1].firstChild.style.textShadow = AI_scoreNode.style.textShadow;// Units (miles/kilometers) text node.
-        AI_distanceNode.children[1].firstChild.innerHTML = distance.unit;
+        AI_distanceNode.children[1].firstChild.innerHTML = distance?.unit;
     }
     
     function makeInfoWindowContent(curGuess, drag, dragEnd, _id){
         let latLng = curGuess.latLng || curGuess.countryLatLng;
+        let isBermuda = false;
+
         if (!latLng || isNaN(latLng.lat)|| isNaN(latLng.lng)){
             // TODO EC: Change coords to Bermuda triangle?
             latLng = bermudaTriangleCoords;
+            isBermuda = true;
         }
         
         const AIMsg = curGuess.json.message.replace(/^\s*/, "");
 
         window.showAltsArray[curGuess.curRound] = (latLng, _id)=>{
+            const lat = (Math.abs(latLng.lat)).toFixed(3); const lng = (Math.abs(latLng.lng)).toFixed(3);
             const el = document.getElementById('showAlts'+_id);
             el.innerHTML = '';
             el.title = "These coordinates could be what you want,\nclick on one to move the marker there.\nSometimes the AI forgets a '-' sign. 9_9";
-            const anchor1 = document.createElement('a');
-            anchor1.href = "#";
-            anchor1.innerHTML = `<span style="text-decoration:underline">${Math.abs(latLng.lat).toFixed(5)}, ${Math.abs(latLng.lng).toFixed(5)}<span> | `;
+            const anchor1 = document.createElement('a'); anchor1.href = "#";
+            anchor1.innerHTML = `<span style="text-decoration_1:underline">${lat}, ${lng}</span><span> ; </span>`;
             anchor1.onclick = (e)=> {
                 e.preventDefault();
                 curGuess.marker.setPosition({lat: Math.abs(latLng.lat), lng: Math.abs(latLng.lng) });
                 drag(); dragEnd();
             };
             el.appendChild(anchor1);
-            const anchor2 = document.createElement('a');
-            anchor2.href = "#";
-            anchor2.innerHTML = `<span style="text-decoration:underline">${(-Math.abs(latLng.lat)).toFixed(5)}, ${Math.abs(latLng.lng).toFixed(5)}<span> | `;
+            const anchor2 = document.createElement('a'); anchor2.href = "#";
+            anchor2.innerHTML = `<span style="text-decoration_1:underline">-${lat}, -${lng}</span><span> ; </span>`;
             anchor2.onclick = (e)=> {
+                e.preventDefault();
+                curGuess.marker.setPosition({lat: -Math.abs(latLng.lat), lng: -Math.abs(latLng.lng) });
+                drag(); dragEnd();
+            };
+            el.appendChild(anchor2);
+            const anchor3 = document.createElement('a'); anchor3.href = "#";
+            anchor3.innerHTML = `<span style="text-decoration_1:underline">-${lat}, ${lng}</span><span> ; </span>`;
+            anchor3.onclick = (e)=> {
                 e.preventDefault();
                 curGuess.marker.setPosition({lat: (-Math.abs(latLng.lat)), lng: Math.abs(latLng.lng) });
                 drag(); dragEnd();
             };
-            el.appendChild(anchor2);
-            const anchor3 = document.createElement('a');
-            anchor3.href = "#";
-            anchor3.innerHTML = `<span style="text-decoration:underline">${Math.abs(latLng.lat).toFixed(5)}, ${(-Math.abs(latLng.lng)).toFixed(5)}<span>`;
-            anchor3.onclick = (e)=> {
+            el.appendChild(anchor3);
+            const anchor4 = document.createElement('a'); anchor4.href = "#";
+            anchor4.innerHTML = `<span style="text-decoration_1:underline">${lat}, -${lng}</span>`;
+            anchor4.onclick = (e)=> {
                 e.preventDefault();
                 curGuess.marker.setPosition({lat: Math.abs(latLng.lat), lng:(-Math.abs(latLng.lng)) });
                 drag(); dragEnd();
             };
-            el.appendChild(anchor3);
+            el.appendChild(anchor4);
         } 
 
         const neg = curGuess.latLngNeg;
         
         let _latLng = curGuess._latLng;
-        let isBermuda = false;
-        if (!_latLng || isNaN(_latLng.lat)|| isNaN(_latLng.lng)){
-            // TODO EC: Change coords to Bermuda triangle?
 
-            _latLng = curGuess.countryLatLng;
-
-            if (!_latLng){
-                // No latlng or countrylatlng.
-                _latLng = bermudaTriangleCoords;
-                isBermuda = true;
-            }
-        }
+        const isCountryLatLng = (latLng.lat === curGuess?.countryLatLng?.lat) && (latLng.lng === curGuess?.countryLatLng?.lng);
 
         // Standard game infowindow content
-        const infoWindowContent = `<div style="color:#111;">
+        const infoWindowContent = `<div id="geospy_response" style="color:#111;">
                             Response from GeoSpy.ai Pal:
                             <pre style="max-width: 30em; background-color: #eee; overflow-x: scroll; 
                                         padding: 5px; scrollbar-color: grey white; 
                                         scrollbar-width: thin;">${AIMsg}</pre>
                             Coordinates for calculating points: 
-                                <span onclick="showAltsArray[${curGuess.curRound}]({lat:${_latLng.lat}, lng:${_latLng.lng}}, ${_id});" title="**Click for addition coordinate options** \nIf the coord is green: the longitude was made negative to address a common \nerror with the AI response and could be wrong." >
-                                    <span id="lat${_id}">${latLng.lat.toFixed(6)}</span>, <span style="color:${neg && "green"}" id="lng${_id}">${latLng.lng.toFixed(6)}</span>
+                                ${_latLng ?`<span onclick="showAltsArray[${curGuess.curRound}]({lat:${_latLng.lat}, lng:${_latLng.lng}}, ${_id});" style="color:${neg && "green"}" title="**Click for addition coordinate options** \nIf the coord is green: it was modified to address a common \nerror with the AI response and could be wrong." >`: ''}
+                                    <span id="lat${_id}">${latLng.lat.toFixed(6)}</span>, <span id="lng${_id}">${latLng.lng.toFixed(6)}</span>
                                 </span>
-                                ${isBermuda? `<div style="color: green">Could not find country name or coordinates in response.</div>`: "" }
                                 <div id="showAlts${_id}"></div>
+                                ${isCountryLatLng ?`<div style="color: green">Useing generic country coordinates.</div>`:``}
+                                ${isBermuda? `<div style="color: green">Could not find country name or coordinates in response.</div>`: "" }
                             <br>
                             <a style="text-decoration: underline;" id="googMapLink${_id}" href="https://www.google.com/maps/search/?api=1&query=${latLng.lat},${latLng.lng}" target="_blank"> View on Google Maps</a>
                             <br> <br>
@@ -1034,7 +1057,7 @@
     function updateAICurRound(curGuess, _latLng){
 
         if (!google?.maps.geometry){
-            newAlert("Google Geometry not available, switching to less accurate method.")
+            newAlert("Google Geometry not available, switching to less accurate method.", "check")
             google.maps.geometry = {
                 spherical : {
                     computeDistanceBetween: _distance,
@@ -1098,10 +1121,16 @@
                 svPos: el.svPos,
                 badResponse: el.badResponse,
                 curMapId: el.curMapId,
+                playerMapClickPos: el.playerMapClickPos,
             };
         });
+
+        const ls = localStorage["aipal"]? JSON.parse(localStorage["aipal"]) : {};
+        const mapId = getMapId();  
         
-        sessionStorage["aipal"] = JSON.stringify({AI_PLAYER: {rounds: rounds}});
+        ls[mapId] = {rounds: rounds};
+
+        localStorage["aipal"] = JSON.stringify(ls);
     }
     
     function isDuelsGame(){
@@ -1180,7 +1209,7 @@
                         canvas.width = xmax * size;
                         canvas.height = ymax * size;
                         buildcanvas();
-                        newAlert('Finished downloading panorama!');
+                        newAlert('Finished downloading panorama!', "check");
                         return;
                     }
                     xmax = Math.max(xmax, x);
@@ -1192,13 +1221,13 @@
             .then(blob => {
                 return new Promise((onSuccess, onError) => {
                     try {
-                        const reader = new FileReader() ;
-                        reader.onload = function(){ onSuccess(this.result) } ;
-                        reader.readAsDataURL(blob) ;
+                        const reader = new FileReader();
+                        reader.onload = function(){ onSuccess(this.result) };
+                        reader.readAsDataURL(blob);
                     } catch(e) {
-                            clearInterval(_waitingForPanoLoadMsg);
-                            console.error("Error downloading pano image. Probably last image on row.");
-                            // onError(e);
+                        clearInterval(_waitingForPanoLoadMsg);
+                        console.error("Error downloading pano image. Probably last image on row.");
+                        // onError(e);
                     }
                 });
             }).then(base64 => {
@@ -1324,16 +1353,21 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
             return;
         }
 
-        const country = resToJSON?.message?.match(/^.*Country:\s?([\u0020-\u009f\u00a1-\uFFFF]+).*/si);
+        const country = resToJSON?.message?.match(/^.*country:\s?([\u0020-\u009f\u00a1-\uFFFF]+).*/si);
         curGuess.country = country && country[1] && /\w+/.test(country[1])? country[1] : null;
         
         const coords = await getCoords(resToJSON, curGuess.country);
 
         curGuess.latLng = coords.latLng; 
          
-        if (curGuess?.latLng?.lng > 0 && curGuess?.country && westernCountries[curGuess?.country?.toLowerCase()]){
-            curGuess.latLngNeg = true;
-            curGuess.latLng.lng = -curGuess.latLng.lng;        
+        if (curGuess?.latLng?.lng > 0 && curGuess?.country && (nwCountries[curGuess?.country?.toLowerCase()] || swCountries[curGuess?.country?.toLowerCase()])){
+                curGuess.latLngNeg = true;
+                curGuess.latLng.lng = -curGuess.latLng.lng;        
+        }
+
+        if (curGuess?.latLng?.lat > 0 && curGuess?.country && swCountries[curGuess?.country?.toLowerCase()]){
+                curGuess.latLngNeg = true;
+                curGuess.latLng.lat = -curGuess.latLng.lat;        
         }
 
         curGuess._latLng = coords.latLng; 
@@ -1351,9 +1385,9 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
 
         google.maps.event.trigger(state.GoogleMapsObj, "AI response finished", curGuess);
 
-        newAlert(`AI has returned an answer for round #${curGuess.curRound}!`);
+        newAlert(`AI has returned an answer for round #${curGuess.curRound}!`, "check");
 
-        console.log("curGuess", curGuess);
+        // console.log("curGuess", curGuess);
     }
 
     async function getCoords(resToJSON, country){
@@ -1460,16 +1494,21 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
                     res(v3APIRes);
                 });
             }
-
-            return _fetch.apply(window, args);
+            
+            try{
+                return _fetch.apply(window, args);
+            } catch(e){}
         };
     })();
     
     let ar = [];
-    function newAlert(msg){
+    function newAlert(msg, check, x){
+        const _check = `<span style="color: green;">&#10004;</span>`;
+        const _x = `<span style="color: red;">&#10006;</span>`;
+
         const body = document.createElement('div');
         body.style.cssText = `position: absolute; left: -22em;  padding: 10px; transition: 1s ease-in-out all; background-color: white; font-size: 18px;font-family: var(--default-font); z-index: 999999;`;
-        body.innerHTML = msg ;
+        body.innerHTML = `<div>${check? _check: x? _x:''} ${msg}</div>` ;
 
         document.body.appendChild(body);
 
@@ -1477,37 +1516,43 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
 
         setTimeout(()=>{
 
-        let p = 0;
-        ar.forEach((el, idx)=>{
-            if (el._removed) return;
-            el.style.top = (p + 1)* 3 + 'em';
-            el.style.left = "2em";
-            p++;
-        });
+            let p = 0;
+            ar.forEach((el, idx)=>{
+                if (el._removed) return;
+                el.style.top = (p + 1)* 3 + 'em';
+                el.style.left = "2em";
+                p++;
+            });
 
-        setTimeout(()=>{
-                body.style.top ="-10em";
-                body.style.opacity = '0';
-                body._removed = true;
-                let p = 0;
-                ar.forEach((el)=>{
-                    if (el._removed) return;
-                    el.style.top = (p + 1)* 3 + 'em';
-                    p++;
-                });
-                setTimeout(()=>{ body.remove(); }, 1200);
-            }, 4000);
+            setTimeout(()=>{
+                    body.style.top ="-10em";
+                    body.style.opacity = '0';
+                    body._removed = true;
+                    let p = 0;
+                    ar.forEach((el)=>{
+                        if (el._removed) return;
+                        el.style.top = (p + 1)* 3 + 'em';
+                        p++;
+                    });
+                    setTimeout(()=>{ body.remove(); }, 1200);
+                }, 4000);
         }, 100);
        }
 
 })();
 
-const westernCountries = {};
+//const westernCountries = {};
+//const westernCountriesArray = ["canada", "chile", "mexico", "usa", "united states", "guatemala", "panama", "colombia", "argentina", "brazil", "bolivia", "ecuador", "ireland", "portugal", "senegal", "costa rica", "venezuela", "peru", "suriname", "puerto rico", "dominican republic", "uruguay","paraguay", "guyana", "french guiana", "nicaragua", "honduras",
+//                                "el salvador", "belize", "curaçao", "aruba","virgin islands", "british virgin islands", "bermuda" ];
+//westernCountriesArray.forEach(country => westernCountries[country] = true); 
 
-const westernCountriesArray = ["canada", "chile", "mexico", "usa", "united states", "guatamala", "panama", "columbia", "argintina", "brazil", "bolivia", "equidor", "ireland", "portugal", "senegal", "costa rica", "venezuala", "peru", "suriname", "puerto rico", "dominican republic", "uruguay","paraguay", "guyana", "french guiana", "nicaragua", "honduras",
-                                "el salvador", "belize", "curacau", "aruba","virgin islands", "british virgin islands", "bermuda" ];
-
-westernCountriesArray.forEach(country => westernCountries[country] = true); 
+// For fixing common AI response error. Sometimes it doesn't put a negative sign in front of coordinates.
+const nwCountries = {};
+const nw = ["liberia", "caymen islands","haiti","the bahamas","wales","northern ireland","bonaire","jamaica","cuba","canada","mexico","usa","united states","guatemala","panama","colombia","ireland","portugal","senegal","costa rica","venezuela","suriname","puerto rico","dominican republic","guyana","french guiana","nicaragua","honduras","el salvador","belize","curaçao","aruba","virgin islands","british virgin islands","bermuda"];
+nw.forEach(country => nwCountries[country] = true); 
+const swCountries = {};
+const sw =  ["chile","argentina","brazil","bolivia","ecuador","peru","uruguay","paraguay"];
+sw.forEach(country => swCountries[country] = true); 
 
     document.head.insertAdjacentHTML(
     // Append style sheet for this script. 
@@ -1520,6 +1565,10 @@ westernCountriesArray.forEach(country => westernCountries[country] = true);
 
     div.gm-style-iw.gm-style-iw-c div.gm-style-iw-d {
         overflow: unset !important;
+    }
+
+    #geospy_response a>span:hover {
+        color: green;
     }
     </style>`);
 
