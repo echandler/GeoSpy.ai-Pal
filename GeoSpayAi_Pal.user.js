@@ -2,7 +2,7 @@
 // @name         GeoSpy.ai Pal 
 // @description  Play GeoGuessr with an AI pal! 
 // @namespace    AI scripts 
-// @version      0.0.9
+// @version      0.1.0
 // @author       echandler
 // @match        https://www.geoguessr.com/*
 // @grant        none
@@ -22,62 +22,47 @@
     let duelsLastRoundNum = null;
     let _canvas = null;
 
-    window.showAltsArray = [];
+    window.showAltsArray = [];// Lame infowindow hack.
 
-    const sesh = localStorage['aipal']? JSON.parse(localStorage['aipal']): null;
-    if (sesh){
-        //state.AI_PLAYER = sesh.AI_PLAYER;
-        state.AI_PLAYER = sesh[getMapId()];
-    }
-
-    function overrideOnLoad(googleScript, observer, overrider) {
-        // From unity script.
-        const oldOnload = googleScript.onload
-        googleScript.onload = (event) => {
-            const google = window.google
-            if (google) {
-                observer.disconnect()
-                overrider(google)
-            }
-            if (oldOnload) {
-                oldOnload.call(googleScript, event)
-            }
-        }
-    }
-
-    function grabGoogleScript(mutations) {
-        // From unity script.
-        for (const mutation of mutations) {
-            for (const newNode of mutation.addedNodes) {
-                const asScript = newNode
-                if (asScript && asScript.src && asScript.src.startsWith('https://maps.googleapis.com/')) {
-                    //asScript.src = "https://maps.googleapis.com/maps/api/js?key=AIzaSyDqRTXlnHXELLKn7645Q1L_5oc4CswKZK4&v=3&libraries=places,drawing&language=ja&region=JP"
-                    return asScript
-                }
-            }
-        }
-        return null
-    }
-
-    function injecterCallback(overrider) {
-        // From unity script.
-        new MutationObserver((mutations, observer) => {
-            const googleScript = grabGoogleScript(mutations)
-            if (googleScript) {
-                overrideOnLoad(googleScript, observer, overrider)
-            }
-        }).observe(document.documentElement, { childList: true, subtree: true })
-        }
-
-    function injecter(overrider) {
-        // From unity script.
-        document.documentElement
-            ? injecterCallback(overrider)
-            : alert("Script didn't load, refresh to try loading the script");
+    const _ls = localStorage['aipal']? JSON.parse(localStorage['aipal']): null;
+    if (_ls){
+        state.AI_PLAYER = _ls[getMapId()];
     }
 
     window.addEventListener('DOMContentLoaded', (event) => {
-        injecter(() => {
+        if (!document.documentElement) {
+            alert("Script didn't load, refresh to try loading the script");
+            return;
+        }
+
+        new MutationObserver((mutations, observer) => {
+            for (const mutation of mutations) {
+                for (const newNode of mutation.addedNodes) {
+                    const googleScript = newNode;
+                    if (googleScript && googleScript.src && googleScript.src.startsWith('https://maps.googleapis.com/')) {
+                        if (googleScript) {
+
+                            const oldOnload = googleScript.onload;
+                            googleScript.onload = (event) => {
+                                const google = window.google;
+                                if (google) {
+                                    observer.disconnect();
+                                    setListeners();
+                                    monkeyPatchGoogleMaps(google);
+                                }
+                                if (oldOnload) {
+                                    oldOnload.call(googleScript, event);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }).observe(document.documentElement, { childList: true, subtree: true })
+    });
+
+    
+    function monkeyPatchGoogleMaps(google) {
             // From unity script.
 
             const svService = new google.maps.StreetViewService();
@@ -87,26 +72,15 @@
 
                     state.svPlayer = this;
 
+
                     this.addListener('position_changed', (e) => {
-                        if (!state.curPanoId){
-                            if (state.onResultPage) return;
-
-                            state.curPanoId = this.getPano();
-
-                            if (!state?.curPanoId || state?.curPanoId?.length !== 22){
-                                if (state?.curPanoId && state?.curPanoId?.length !== 22){
-                                    newAlert("Doesn't appear to be official coverage. It's not going to work for this round.");
-                                }
-                                return;
-                            }
-
-                            state.curLatLng = this.position.toJSON();
-
-                            state.needToTalkToAi = false;
-                            state.notInAGame = false;
-
-                            talkToAi(state.curPanoId);
+                        if (!state.GoogleMapsObj) {
+                            onMapLoadCallBacks.push(() => {
+                                google.maps.event.trigger(state.GoogleMapsObj, "sv_position_changed", this);
+                            });
+                            return;
                         }
+                        google.maps.event.trigger(state.GoogleMapsObj, "sv_position_changed", this);
                     });
                 }
             };
@@ -117,21 +91,14 @@
 
                     state.GoogleMapsObj = this;
 
-                    setListeners();
-
                     onMapLoadCallBacks.forEach(fn => fn()); 
                     onMapLoadCallBacks.length = 0;
 
                     google.maps.event.trigger(this, "new map", this);
            
-                    this.addListener('click', (e) => {
-                        state.playerMapClickPos = e.latLng.toJSON();
-                    });
-                    
                 }
             };
-        });// End of injector().
-    });// End of DOMContentLoaded listener.
+        };// End of injector().
 
 
     let mainObserver = new MutationObserver((mutations) => {
@@ -239,7 +206,7 @@
                             if (!window?.google){
                                 const _timer = setTimeout(()=>{
                                     newAlert("Couldn't find google maps object. Contact author of script if error persists.");
-                                }, 2000);
+                                }, 3000);
 
                                 onMapLoadCallBacks.push(function(){
                                     clearTimeout(_timer);
@@ -275,7 +242,7 @@
                             if (!window?.google){
                                 const _timer = setTimeout(()=>{
                                     newAlert("Couldn't find google maps object. Contact author of script if error persists.");
-                                }, 2000);
+                                }, 3000);
 
                                 onMapLoadCallBacks.push(function(){
                                     clearTimeout(_timer);
@@ -324,10 +291,22 @@
     
     function setListeners(){
         if (state.listenersSet) return;
+
+        if (!state.GoogleMapsObj){
+            onMapLoadCallBacks.push(setListeners);
+            return;
+        }
+
         state.listenersSet = true;
+
+        state.GoogleMapsObj.addListener('click', (e) => {
+            state.playerMapClickPos = e.latLng.toJSON();
+        });
+
         google.maps.event.addListener(state.GoogleMapsObj, "new round", newRoundFn);
         google.maps.event.addListener(state.GoogleMapsObj, "end game", endOfGame);
         google.maps.event.addListener(state.GoogleMapsObj, "result page", onResultPageFn);
+        google.maps.event.addListener(state.GoogleMapsObj, "sv_position_changed", sv_position_changed);
         google.maps.event.addListener(state.GoogleMapsObj, "AI response finished", updateAICurRound );
         google.maps.event.addListener(state.GoogleMapsObj, "AI response finished", duals.waitToUpdateDuelsGame );
         google.maps.event.addListener(state.GoogleMapsObj, "showing duels timer", duals.updateDuelsTimer );
@@ -335,12 +314,33 @@
         google.maps.event.addListener(state.GoogleMapsObj, "standard game final score page", showAIGuess_standard_finalResultsPage );
         google.maps.event.addListener(state.GoogleMapsObj, "challenge game final score page", ()=> setTimeout(showAIGuess_challenge_finalResultsPage, 1000) );
 
-      //  google.maps.event.addListener(state.GoogleMapsObj, "new round", fortests.unHidePage);
-      //  google.maps.event.addListener(state.GoogleMapsObj, "result page", fortests.hidePage);
-      //  google.maps.event.addListener(state.GoogleMapsObj, "AI response finished", fortests.putMarkerOnMap);
+      //  google.maps.event.addListener(state.GoogleMapsObj, "new round", forTesting.unHidePage);
+      //  google.maps.event.addListener(state.GoogleMapsObj, "result page", forTesting.hidePage);
+      //  google.maps.event.addListener(state.GoogleMapsObj, "AI response finished", forTesting.putMarkerOnMap);
     }
     
-    const fortests = {
+    function sv_position_changed(sv){
+        if (state.curPanoId || state.onResultPage) return;
+
+        state.curPanoId = sv.getPano();
+
+        if (!state?.curPanoId || state?.curPanoId?.length !== 22) {
+            if (state?.curPanoId && state?.curPanoId?.length !== 22) {
+                newAlert("Doesn't appear to be official coverage. It's not going to work for this round.", false, "show x");
+            }
+            return;
+        }
+
+        state.curLatLng = sv.position.toJSON();
+
+        state.needToTalkToAi = false;
+
+        state.inaGame = true;
+
+        talkToAi(state.curPanoId);
+    }
+
+    const forTesting = {
         unHidePage: function (){
 
             document.body.style.visibility = '';
@@ -528,24 +528,23 @@
         const AI_resultsScores= AI_row.querySelectorAll(`div[class*="_score_"]`);
         const AI_scoreDetails = AI_row.querySelectorAll(`div[class*="scoreDetails"]`);
         
-        const selectedRow = [...document.querySelector(`div[class*="results_selected"]`).classList];
+        // One row will be selected by default that has both selected and non-selected classes.
+        const selectedRowClasses = [...document.querySelector(`div[class*="results_selected"]`).classList];
+        const selectedClass = selectedRowClasses.reduce((acc, cur) => /selected/i.test(cur) && cur);
 
         AI_row.addEventListener('click', ()=>{
            if (/selected/i.test(AI_row.classList.toString())){
-                AI_row.classList = [];
-                selectedRow.forEach(el =>{
-                    if (/selected/i.test(el))return;
-                    AI_row.classList.add(el);
-                })
+                // Remove selected class.
+                AI_row.classList.remove(selectedClass);
                 google.maps.event.trigger(state.GoogleMapsObj, "remove all markers");
-           } else{
-               AI_row.remove();
-               _showAIGuess_challenge_finalResultsPage();
-           } 
-           
+                return;
+           }
+            // Add selected class.
+            AI_row.classList.add(selectedClass);
+            updateChallengeInfo();
         });
 
-        selectedRow.forEach(el =>{
+        selectedRowClasses.forEach(el =>{
             // Show AI_row selected by copying classes from a selected row.
             AI_row.classList.add(el);
         })
@@ -562,69 +561,67 @@
 
         AI_resultsPos.innerText = "01."
         
-    function updateChallengeInfo(){              
-        const totals = state.AI_PLAYER.rounds.reduce((acc, curval, idx, array) => {
-            if (!curval) {
-                return acc;
-            }
-            return [acc[0] + curval.points, acc[1] + curval.distance];
-        }, [0, 0]);
+        function updateChallengeInfo(){              
+            const totals = state.AI_PLAYER.rounds.reduce((acc, curval, idx, array) => {
+                if (!curval) {
+                    return acc;
+                }
+                return [acc[0] + curval.points, acc[1] + curval.distance];
+            }, [0, 0]);
 
-        AI_scoreDetails.forEach((el, idx) =>{
-            const _innerText = el.innerText;
+            AI_scoreDetails.forEach((el, idx) =>{
+                const _innerText = el.innerText;
 
-            el.innerText = "?"; 
+                el.innerText = "?"; 
 
-            if (idx === 5){
-                // Total element
-                const unit = /miles/i.test(_innerText);
+                if (idx === 5){
+                    // Total element
+                    const unit = /miles/i.test(_innerText);
 
-                const converted = convertDistanceTo(totals[1], unit? "miles": "km");
+                    const converted = convertDistanceTo(totals[1], unit? "miles": "km");
 
-                el.innerText = `${Math.round(converted.distance).toLocaleString()} ${converted.unit}`;
+                    el.innerText = `${Math.round(converted.distance).toLocaleString()} ${converted.unit}`;
 
-            } else if (state.AI_PLAYER.rounds[idx]){
-                const unit = /miles/i.test(_innerText);
-                const converted = convertDistanceTo(state.AI_PLAYER.rounds[idx].distance, unit? "miles": "km");
-                el.innerText = `${Math.round(converted.distance).toLocaleString()} ${converted.unit}`;
-            }
-        });
+                } else if (state.AI_PLAYER.rounds[idx]){
+                    const unit = /miles/i.test(_innerText);
+                    const converted = convertDistanceTo(state.AI_PLAYER.rounds[idx].distance, unit? "miles": "km");
+                    el.innerText = `${Math.round(converted.distance).toLocaleString()} ${converted.unit}`;
+                }
+            });
 
-        AI_resultsScores.forEach((el, idx) =>{
-            el.innerText = "?"; 
+            AI_resultsScores.forEach((el, idx) =>{
+                el.innerText = "?"; 
 
-            if (idx === 5){
-                // Total element
+                if (idx === 5){
+                    // Total element
 
-                el.innerText = `${totals[0]} pts`;
+                    el.innerText = `${totals[0]} pts`;
 
-            } else if (state.AI_PLAYER.rounds[idx]){
-                el.innerText = `${state.AI_PLAYER.rounds[idx].points} pts`;
-            }
-        });
-      
-        state.AI_PLAYER.rounds.forEach( (round, idx) => {
-            showAIGuess_normalResultPage_marker(round, dragEndCb, true, false);
-        });
-    }
+                } else if (state.AI_PLAYER.rounds[idx]){
+                    el.innerText = `${state.AI_PLAYER.rounds[idx].points} pts`;
+                }
+            });
+        
+            state.AI_PLAYER.rounds.forEach( (round, idx) => {
+                showAIGuess_normalResultPage_marker(round, dragEndCb, true, false);
+            });
+        }
+
         updateChallengeInfo();
 
         table.insertBefore(AI_row, firstRow);
         
-        AI_row.addEventListener('click', ()=>{
-           // TODO: what was this for? 
-        });
-
         function dragEndCb(el){
-            //AI_row.remove();
             updateChallengeInfo();
-           // _showAIGuess_challenge_finalResultsPage();
         }
     } // End showAIGuess_challenge_finalResultsPage
 
     function showAIGuess_standard_finalResultsPage(){
         google.maps.event.trigger(state.GoogleMapsObj, "remove all markers");
-        state.AI_PLAYER.rounds.forEach( (round, idx) => round.infoWindowOpened = false);
+        state.AI_PLAYER.rounds.forEach( (round, idx) => {
+            if (!round?.infoWindowOpened) return;
+            round.infoWindowOpened = false;
+        });
         _showAIGuess_standard_finalResultsPage();
     }
 
@@ -727,7 +724,7 @@
         state.needToTalkToAi = true;     
         state.curPanoId = null; 
         state.curLatLng = null; 
-        state.notInAGame = true;
+        state.inaGame = false;
     }
 
     async function onResultPageFn(){
@@ -737,20 +734,20 @@
     }
     
     function showAIGuess_normalResultPage_marker(curGuess, dragEndCb, dontChangeBounds, showInfoWindowOnCreate){
-       if (!curGuess || !curGuess?.curRound){
-          // newAlert("Can't find round");
-           return;
-       }
+        if (!curGuess || !curGuess?.curRound) {
+            // newAlert("Can't find round");
+            return;
+        }
 
-       const _id = state._id++;
+        const _id = state._id++;
 
         let latLng = curGuess?.latLng || curGuess?.countryLatLng;
-        if (!latLng || isNaN(latLng.lat)|| isNaN(latLng.lng)){
+        if (!latLng || isNaN(latLng.lat) || isNaN(latLng.lng)) {
             // TODO EC: Change coords to Bermuda triangle?
             latLng = bermudaTriangleCoords;
         }
 
-        if (curGuess.marker){
+        if (curGuess.marker) {
             curGuess.marker.setMap(null);
         }
 
@@ -764,41 +761,43 @@
                 fontSize: '19px',
                 fontWeight: 'bold',
                 fontFamily: 'var(--default-font)'
-            }, 
+            },
         });
 
         curGuess.marker.isDraggin = false;
 
         const infoWindow = new google.maps.InfoWindow({
             map: state.GoogleMapsObj,
-            content: makeInfoWindowContent(curGuess, drag, dragEnd, _id), 
+            content: makeInfoWindowContent(curGuess, drag, dragEnd, _id),
             disableAutoPan: true,
         });
 
-        if (curGuess.infoWindowOpened){
-            infoWindow.open({anchor: curGuess.marker});
+        if (curGuess.infoWindowOpened) {
+            infoWindow.open({ anchor: curGuess.marker });
         }
 
         let closeInfoWindowTimeout = null;
 
-        if (curGuess.infoWindowOpened === undefined && showInfoWindowOnCreate){
-            closeInfoWindowTimeout = setTimeout(()=>{
+        if (curGuess.infoWindowOpened === undefined && showInfoWindowOnCreate) {
+            closeInfoWindowTimeout = setTimeout(() => {
                 infoWindow.close();
                 curGuess.infoWindowOpened = false;
             }, 5000);
-
+            
             curGuess.infoWindowOpened = true;
 
-            infoWindow.open({anchor: curGuess.marker});
+            infoWindow.open({ anchor: curGuess.marker });
+
+            shootTarget(curGuess.marker.getPosition().toJSON(), curGuess.svPos);
         }
 
-        if (!dontChangeBounds){
+        if (!dontChangeBounds) {
             const _bounds = new google.maps.LatLngBounds();
             _bounds.extend(curGuess.marker.getPosition());
             _bounds.extend(curGuess.svPos);
             if (curGuess.playerMapClickPos) _bounds.extend(curGuess.playerMapClickPos);
 
-            setTimeout(()=>{
+            setTimeout(() => {
                 // Don't want battle geoguessr's animation.
                 state.GoogleMapsObj.fitBounds(_bounds);
             }, 1000);
@@ -807,28 +806,35 @@
         curGuess.marker.addListener('click', () => {
             if (curGuess.marker.isDraggin) return;
             clearTimeout(closeInfoWindowTimeout);
-            
+
             curGuess.infoWindowOpened = !curGuess.infoWindowOpened;
 
-            curGuess.infoWindowOpened ? infoWindow.open({anchor: curGuess.marker})
-                                      : infoWindow.close();
+            if (curGuess.infoWindowOpened) {
+                infoWindow.open({ anchor: curGuess.marker })
+                shootTarget(curGuess.marker.getPosition().toJSON(), curGuess.svPos);
+            } else {
+                infoWindow.close();
+            }
+        });
+
+        google.maps.event.addListener(infoWindow, 'closeclick', function () {
+            curGuess.infoWindowOpened = false;
         });
 
         google.maps.event.addListener(curGuess.marker, 'drag', drag);
-        
+        google.maps.event.addListener(curGuess.marker, 'dragend', dragEnd);
+
         function drag(e) {
-            try{
+            try {
                 // infowindow might be closed.
                 curGuess.marker.isDraggin = true;
                 clearTimeout(closeInfoWindowTimeout);
                 const lat = curGuess.marker.getPosition().lat().toFixed(6);
                 const lng = curGuess.marker.getPosition().lng().toFixed(6);
-                document.getElementById("lat"+_id).innerText = lat;
-                document.getElementById("lng"+_id).innerText = lng;
-            } catch (e){}
+                document.getElementById("lat" + _id).innerText = lat;
+                document.getElementById("lng" + _id).innerText = lng;
+            } catch (e) { }
         };
-
-        google.maps.event.addListener(curGuess.marker, 'dragend', dragEnd);
 
         function dragEnd(e) {
             curGuess.marker.isDraggin = false;
@@ -836,34 +842,34 @@
             const pos = curGuess.marker.getPosition().toJSON();
 
             updateAICurRound(curGuess, pos);
-            
+
             curGuess.latLngNeg = false;
 
             const lat = curGuess.marker.getPosition().lat().toFixed(6);
             const lng = curGuess.marker.getPosition().lng().toFixed(6);
-            if (document.getElementById("googMapLink"+_id)){
-                document.getElementById("googMapLink"+_id).href =`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`; 
-            } 
+            if (document.getElementById("googMapLink" + _id)) {
+                document.getElementById("googMapLink" + _id).href = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+            }
             dragEndCb(e);
         };
-        
-        const markerListener1 = google.maps.event.addListener(state.GoogleMapsObj, 'remove final round markers', ()=>{
+
+        const markerListener1 = google.maps.event.addListener(state.GoogleMapsObj, 'remove final round markers', () => {
             google.maps.event.removeListener(markerListener1);
             marker.setMap(null);
         });
 
-        const markerListener2 = google.maps.event.addListener(state.GoogleMapsObj, 'new round', ()=>{
+        const markerListener2 = google.maps.event.addListener(state.GoogleMapsObj, 'new round', () => {
             google.maps.event.removeListener(markerListener2);
             marker.setMap(null);
         });
 
         const markerListener3 = google.maps.event.addListener(state.GoogleMapsObj, "end game", () => {
-            google.maps.event.removeListener(markerListener3); 
+            google.maps.event.removeListener(markerListener3);
             curGuess.marker.setMap(null);
         });
 
         const markerListener4 = google.maps.event.addListener(state.GoogleMapsObj, "remove all markers", () => {
-            google.maps.event.removeListener(markerListener4); 
+            google.maps.event.removeListener(markerListener4);
             curGuess.marker.setMap(null);
         });
     }
@@ -1102,8 +1108,8 @@
 
         }
 
-        curGuess.points = points; 
-        curGuess.distance = guessDistance;
+        curGuess.points = curGuess.badResponse? 0: points; 
+        curGuess.distance = curGuess.badResponse? 0: guessDistance;
 
         state.AI_PLAYER.rounds[curGuess.curRound-1] = curGuess;
 
@@ -1146,6 +1152,7 @@
     }
 
     async function talkToAi(panoId){
+        const _round = state?.gameInfo?.currentRoundNumber || state?.gameInfo?.round;
 
         if (!state?.GoogleMapsObj) {
             setTimeout(()=>{
@@ -1154,7 +1161,13 @@
             return;
         }
         
-        const _round = state.gameInfo.currentRoundNumber || state.gameInfo.round;
+        if (!_round){
+            const newRoundListener = google.maps.event.addListener(state.GoogleMapsObj, "new round",()=>{
+                google.maps.event.removeListener(newRoundListener);
+                talkToAi(panoId);
+            });
+            return;
+        }
 
         let curGuess = { 
             state: "Downloading Panorama", 
@@ -1312,12 +1325,12 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
     function sendRequestToAi(payLoad, curGuess){
         /* Mock response for testing */
         
-  //       AIServerResponse({
-  //           response: '{"message":" Country: Norway\\nExplanation: The photo was taken on a bridge in Norway. The bridge is surrounded by mountains and there is a river running underneath it. The photo was taken in the fall, as the leaves on the trees are turning brown.\\nCoordinates: 60.4739° N, 7.0112° E","sup_data":[]}'
-  //          // response: '{"message":" Country: Norway\\nExplanation: The photo was taken on a bridge in Norway. The bridge is surrounded by mountains and there is a river running underneath it. The photo was taken in the fall, as the leaves on the trees are turning brown.\\nCoordinates: ","sup_data":[]}'
-  //          // response: '{"message":" Country: \\nExplanation: The photo was taken on a bridge in Norway. The bridge is surrounded by mountains and there is a river running underneath it. The photo was taken in the fall, as the leaves on the trees are turning brown.\\nCoordinates: ","sup_data":[]}'
-  //       }, curGuess);
-  //       return;
+      //   AIServerResponse({
+      //       response: '{"message":" Country: Norway\\nExplanation: The photo was taken on a bridge in Norway. The bridge is surrounded by mountains and there is a river running underneath it. The photo was taken in the fall, as the leaves on the trees are turning brown.\\nCoordinates: 60.4739° N, 7.0112° E","sup_data":[]}'
+      //      // response: '{"message":" Country: Norway\\nExplanation: The photo was taken on a bridge in Norway. The bridge is surrounded by mountains and there is a river running underneath it. The photo was taken in the fall, as the leaves on the trees are turning brown.\\nCoordinates: ","sup_data":[]}'
+      //      // response: '{"message":" Country: \\nExplanation: The photo was taken on a bridge in Norway. The bridge is surrounded by mountains and there is a river running underneath it. The photo was taken in the fall, as the leaves on the trees are turning brown.\\nCoordinates: ","sup_data":[]}'
+      //   }, curGuess);
+      //   return;
         
         curGuess.state = "Sending XMLHttpRequest to AI server.";
             
@@ -1337,26 +1350,28 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
         newAlert(`Sending panorama to GeoSpy.ai's server!`);
 
         const _interval = setInterval(()=>{
-           newAlert('Still waiting on GeoSpy.ai! ') 
+           newAlert(`Still waiting on GeoSpy.ai for round #${curGuess.curRound}!`); 
         }, 10000);
 
         xmlr.send(payLoad);
     }
 
     async function AIServerResponse(XMLHttpRequestObj, curGuess){
-        if (state.notInAGame) return;
+        if (!state.inaGame) return;
+
         if (XMLHttpRequestObj.readyState == 0){
             alert('mission aborted');
             return;
         }
 
+        //const resToJSON = {"code":5000,"error":"Method not allowed"};
         const resToJSON = JSON.parse(XMLHttpRequestObj.response);
 
-        console.log(curGuess.curRound, resToJSON.message);
+        console.log(curGuess?.curRound, resToJSON?.message);
 
-        const error1 = new RegExp("There is not enough context in the photo to determine a location. Please try a more interesting photo", "is");
+        const errorRegExp_1 = new RegExp("There is not enough context in the photo to determine a location. Please try a more interesting photo", "is");
 
-        if (resToJSON?.message && error1.test(resToJSON.message)){
+        if (resToJSON?.error || errorRegExp_1.test(resToJSON?.message)){
             handleBadResponse(resToJSON, curGuess);
             return;
         }
@@ -1427,10 +1442,13 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
     }
     
     function handleBadResponse(resToJSON, curGuess){
-        curGuess.json = resToJSON;
+        curGuess.json = {
+            message: resToJSON?.error || resToJSON?.message || "Something happened with response from server.",
+        };
         curGuess.badResponse = true;
         curGuess.points = 0;
         curGuess.latLng = bermudaTriangleCoords; 
+        curGuess._latLng = bermudaTriangleCoords; 
 
         const newRoundListener = google.maps.event.addListener(state.GoogleMapsObj, "new round", ()=>{
             google.maps.event.removeListener(newRoundListener);
@@ -1441,7 +1459,7 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
 
         google.maps.event.trigger(state.GoogleMapsObj, "AI response finished", curGuess);
 
-        newAlert(`AI has returned an answer for round #${curGuess.curRound}!`);
+        newAlert(`AI has returned an answer for round #${curGuess.curRound}!`, false, "x");
 
         console.log("AI Didn't like image curGuess", curGuess);
     }
@@ -1547,6 +1565,61 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
         }, 100);
        }
 
+       function shootTarget(start, target){
+//          const dist = distanceInPx(state.GoogleMapsObj, start, target);
+           
+            const dist = window.innerWidth;
+
+            const lineSymbol = {
+                //path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, // "M 0,-1 0,1",
+                path: "m25,1 6,17h18l-14,11 5,17-15-10-15,10 5-17-14-11h18z",
+                strokeOpacity: 1,
+                fillOpacity: 1,
+                scale: 0.25,
+            };
+            
+            for (let n = 0; n < 3; n++){
+                setTimeout(()=>{
+                    let offset = 0;
+                    let line = null;
+                    const inter = setInterval(() => {
+                        line?.setMap(null);
+
+                        if (offset > dist) { //window.innerWidth) {
+                            clearInterval(inter);
+                            return;
+                        }
+
+                        offset += 10;
+
+                        line = new google.maps.Polyline({
+                            path: [start, target],
+                            strokeColor: "#fb443b", // "#fb443b" Red marker color
+                            fillColor: "red",
+                            strokeOpacity: 0,
+                            fillOpacity: 1,
+                            icons: [
+                                {
+                                    icon: lineSymbol,
+                                    offset: offset + "px",
+                                    repeat: dist * 2 + "px",
+                                    fillColor: "red",
+                                },
+                            ],
+                            map: state.GoogleMapsObj,
+                        });
+                    }, 20);
+                }, n * 500);
+            }
+            return { 
+                destroy: ()=> {
+                    return;
+                    line.setMap(null); 
+                    clearInterval(inter);
+                }
+            };
+       }
+
 })();
 
 //const westernCountries = {};
@@ -1594,4 +1667,15 @@ function distance(lat1, lon1, lat2, lon2) {
         (1 - c((lon2 - lon1) * p))/2;
 
     return 1000 * 12742 * Math.asin(Math.sqrt(a)); // 2 * R; R = 6371 km
+}
+
+function distanceInPx(map, marker1, marker2) {
+    var p1 = map.getProjection().fromLatLngToPoint(marker1);
+    var p2 = map.getProjection().fromLatLngToPoint(marker2);
+
+    var pixelSize = Math.pow(2, -map.getZoom());
+
+    var d = Math.sqrt((p1.x-p2.x)*(p1.x-p2.x) + (p1.y-p2.y)*(p1.y-p2.y))/pixelSize;
+
+    return d;
 }
