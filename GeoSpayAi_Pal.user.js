@@ -999,7 +999,7 @@
                                     <span id="lat${_id}">${latLng.lat.toFixed(6)}</span>, <span id="lng${_id}">${latLng.lng.toFixed(6)}</span>
                                 </span>
                                 <div id="showAlts${_id}"></div>
-                                ${isCountryLatLng ?`<div style="color: green">Useing generic country coordinates.</div>`:``}
+                                ${isCountryLatLng ?`<div style="color: green">Using generic country coordinates.</div>`:``}
                                 ${isBermuda? `<div style="color: green">Could not find country name or coordinates in response.</div>`: "" }
                             <br>
                             <a style="text-decoration: underline;" id="googMapLink${_id}" href="https://www.google.com/maps/search/?api=1&query=${latLng.lat},${latLng.lng}" target="_blank"> View on Google Maps</a>
