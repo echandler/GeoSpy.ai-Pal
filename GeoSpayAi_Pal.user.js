@@ -1792,7 +1792,6 @@ function distanceInPx(map, marker1, marker2) {
     return d;
 }
 
-const MAP_MAKING_API_KEY = `12bd2940-9b54-4217-99fd-ba90f50a7f33`;
 
 async function mmaFetch(url, options = {}) {
 	const response = await fetch(new URL(url, 'https://map-making.app'), {
