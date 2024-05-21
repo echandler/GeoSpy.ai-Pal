@@ -1755,6 +1755,10 @@ sw.forEach(country => swCountries[country] = true);
         padding-right: 12px !important;
         padding-bottom: 12px !important;
     }
+    
+    div.gm-style-iw.gm-style-iw-c:focus-visible {
+        outline: none;
+    }
 
     div.gm-style-iw.gm-style-iw-c div.gm-style-iw-d {
         overflow: unset !important;
