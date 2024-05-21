@@ -2,7 +2,7 @@
 // @name         GeoSpy.ai Pal 
 // @description  Play GeoGuessr with an AI pal! 
 // @namespace    AI scripts 
-// @version      0.1.0
+// @version      0.1.1
 // @author       echandler
 // @match        https://www.geoguessr.com/*
 // @grant        none
@@ -16,10 +16,9 @@
 
 (function() {
     'use strict';
-    const state = {_id: 0};
+    const state = {_id: 0, duelsLastRoundNum: null};
     const bermudaTriangleCoords = { lat: 24.960182, lng: -71.022406 }; 
     const onMapLoadCallBacks = [];
-    let duelsLastRoundNum = null;
     let _canvas = null;
 
     window.showAltsArray = [];// Lame infowindow hack.
@@ -258,13 +257,14 @@
                     }
                     
                     if (isDuelsResulst){
-                        google.maps.event.trigger(state.GoogleMapsObj, "result page");
+                        window?.google?.maps?.event?.trigger(state.GoogleMapsObj, "result page");
                         return;
                     }
                     
                     const showingDuelsTimer = /clock-timer/i.test(classListString);
                     if (showingDuelsTimer){
-                        google.maps.event.trigger(state.GoogleMapsObj, "showing duels timer");
+                        
+                        window?.google?.maps?.event?.trigger(state.GoogleMapsObj, "showing duels timer");
                         return;
                     }
                 
@@ -383,7 +383,7 @@
 
         duelsGameFinished: function () {
             // Reset game number for next game.
-            duelsLastRoundNum = null;
+            state.duelsLastRoundNum = null;
 
             setTimeout(() => {
                 document.body.querySelectorAll('a').forEach(async btn => {
@@ -451,9 +451,9 @@
         updateDuelsGame: function (curGuess) {
             if (!isDuelsGame()) return
 
-            if (state.gameInfo.currentRoundNumber === duelsLastRoundNum || duelsLastRoundNum === null) {
+            if (state.gameInfo.currentRoundNumber === state.duelsLastRoundNum || state.duelsLastRoundNum === null) {
                 state.gameInfo.currentRoundNumber++;
-                duelsLastRoundNum = state.gameInfo.currentRoundNumber;
+                state.duelsLastRoundNum = state.gameInfo.currentRoundNumber;
             } else {
                 alert("Something happened: wrong round number. Can't make guess.")
                 return;
@@ -507,13 +507,15 @@
             });
         },
     };
-
+    
     function showAIGuess_challenge_finalResultsPage(){
         google.maps.event.trigger(state.GoogleMapsObj, "remove all markers");
+
         state.AI_PLAYER.rounds.forEach( (round, idx) => {
             if (!round?.infoWindowOpened) return;
             round.infoWindowOpened = false;
         });
+
         _showAIGuess_challenge_finalResultsPage();
     }
 
@@ -603,7 +605,7 @@
             });
         
             state.AI_PLAYER.rounds.forEach( (round, idx) => {
-                showAIGuess_normalResultPage_marker(round, dragEndCb, true, false);
+                showAIGuess_marker(round, dragEndCb, true, false);
             });
         }
 
@@ -618,10 +620,12 @@
 
     function showAIGuess_standard_finalResultsPage(){
         google.maps.event.trigger(state.GoogleMapsObj, "remove all markers");
+
         state.AI_PLAYER.rounds.forEach( (round, idx) => {
             if (!round?.infoWindowOpened) return;
             round.infoWindowOpened = false;
         });
+
         _showAIGuess_standard_finalResultsPage();
     }
 
@@ -682,7 +686,7 @@
 
             //state.AI_PLAYER.rounds.forEach( (el, idx) => makeFinalResultsPageMarkers(el, dragEndCb, ));
             state.AI_PLAYER.rounds.forEach( (round, idx) => {
-                showAIGuess_normalResultPage_marker(round, dragEndCb, true, false);
+                showAIGuess_marker(round, dragEndCb, true, false);
             });
         }
 
@@ -733,7 +737,7 @@
         state.curLatLng = null; 
     }
     
-    function showAIGuess_normalResultPage_marker(curGuess, dragEndCb, dontChangeBounds, showInfoWindowOnCreate){
+    function showAIGuess_marker(curGuess, dragEndCb, dontChangeBounds, showInfoWindowOnCreate){
         if (!curGuess || !curGuess?.curRound) {
             // newAlert("Can't find round");
             return;
@@ -771,6 +775,16 @@
             content: makeInfoWindowContent(curGuess, drag, dragEnd, _id),
             disableAutoPan: true,
         });
+        
+        const _infoWin_open = infoWindow.open;
+
+        infoWindow.open = (obj) => {
+            // Hack to prevent infowindow from closing if player is reading the ai response message.
+            _infoWin_open.call(infoWindow, obj); 
+            setTimeout(()=>{
+                document.getElementById(`geospy_response_${_id}`).addEventListener("mousedown", ()=> { clearTimeout(closeInfoWindowTimeout)});
+            }, 500);
+        };
 
         if (curGuess.infoWindowOpened) {
             infoWindow.open({ anchor: curGuess.marker });
@@ -795,6 +809,7 @@
             const _bounds = new google.maps.LatLngBounds();
             _bounds.extend(curGuess.marker.getPosition());
             _bounds.extend(curGuess.svPos);
+
             if (curGuess.playerMapClickPos) _bounds.extend(curGuess.playerMapClickPos);
 
             setTimeout(() => {
@@ -805,6 +820,7 @@
 
         curGuess.marker.addListener('click', () => {
             if (curGuess.marker.isDraggin) return;
+
             clearTimeout(closeInfoWindowTimeout);
 
             curGuess.infoWindowOpened = !curGuess.infoWindowOpened;
@@ -845,22 +861,23 @@
 
             curGuess.latLngNeg = false;
 
-            const lat = curGuess.marker.getPosition().lat().toFixed(6);
-            const lng = curGuess.marker.getPosition().lng().toFixed(6);
             if (document.getElementById("googMapLink" + _id)) {
+                const lat = curGuess.marker.getPosition().lat().toFixed(6);
+                const lng = curGuess.marker.getPosition().lng().toFixed(6);
                 document.getElementById("googMapLink" + _id).href = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
             }
+
             dragEndCb(e);
         };
 
         const markerListener1 = google.maps.event.addListener(state.GoogleMapsObj, 'remove final round markers', () => {
             google.maps.event.removeListener(markerListener1);
-            marker.setMap(null);
+            curGuess.marker.setMap(null);
         });
 
         const markerListener2 = google.maps.event.addListener(state.GoogleMapsObj, 'new round', () => {
             google.maps.event.removeListener(markerListener2);
-            marker.setMap(null);
+            curGuess.marker.setMap(null);
         });
 
         const markerListener3 = google.maps.event.addListener(state.GoogleMapsObj, "end game", () => {
@@ -883,6 +900,9 @@
         if (!ignoreResultPageState && !state.onResultPage) return;
 
         if (curGuess.state != "Done" && !curGuess.savedRound){
+            const cSS = `text-decoration: underline; text-decoration-color: #ff9800;`;
+            newAlert(`<div style="${cSS}">AI is still working hard on round #${curGuess.curRound}</div>`);
+
             const listener = google.maps.event.addListener(state.GoogleMapsObj, "AI response finished", function(){
                 google.maps.event.removeListener(listener);
                 showAIGuess_normalResultPage(curGuess);
@@ -895,7 +915,7 @@
             saveRounds();
         }
 
-        showAIGuess_normalResultPage_marker(curGuess, dragEndCb, dontChangeBounds, true);
+        showAIGuess_marker(curGuess, dragEndCb, dontChangeBounds, true);
         
         function dragEndCb(e){
             showAIGuess_normalResultPage(curGuess, "ignore result page state", "dont change bounds")
@@ -921,8 +941,22 @@
         const unit = /miles/i.test(distanceNode.innerText)? "miles": "km";
         let distance = convertDistanceTo(curGuess?.distance, unit);
         distance.distance = Math.round(parseFloat(distance?.distance.toFixed(2))).toLocaleString();
+        distance.distance = (curGuess?.distance) ? distance?.distance : "?";
 
-        AI_distanceNode.children[0].firstChild.innerHTML = curGuess?.distance? distance?.distance : "?"; 
+        if (/timed out/i.test(AI_distanceNode.innerText)){
+            
+            let unit = "?";
+
+            if (window?.__NEXT_DATA__){
+                unit = /\{0\} miles/i.test(JSON.stringify(window?.__NEXT_DATA__)) ? "miles": "kms"; 
+            };
+           
+            AI_distanceNode.innerHTML = `<div style="text-shadow: ${AI_scoreNode.style.textShadow}">${distance?.distance} ${unit}</div>`
+
+            return;
+        }
+
+        AI_distanceNode.children[0].firstChild.innerHTML = distance?.distance; 
         AI_distanceNode.children[0].style.textShadow = AI_scoreNode.style.textShadow;// Distance text node.
         AI_distanceNode.children[1].firstChild.style.textShadow = AI_scoreNode.style.textShadow;// Units (miles/kilometers) text node.
         AI_distanceNode.children[1].firstChild.innerHTML = distance?.unit;
@@ -989,7 +1023,7 @@
         const backgroundCSS= `background: ${backgroundURL}; background-size: 70%;`;
 
         // Standard game infowindow content
-        const infoWindowContent = `<div id="geospy_response" style="color:#111;font-family: var(--default-font);${backgroundCSS}">
+        const infoWindowContent = `<div id="geospy_response_${_id}" style="color:#111;font-family: var(--default-font);${backgroundCSS}">
                             Response from GeoSpy.ai Pal:
                             <pre style="max-width: 30em; background-color: #eee; overflow-x: scroll; 
                                         padding: 5px; scrollbar-color: grey white; 
@@ -1110,16 +1144,17 @@
 
         curGuess.points = curGuess.badResponse? 0: points; 
         curGuess.distance = curGuess.badResponse? 0: guessDistance;
-
+        
         state.AI_PLAYER.rounds[curGuess.curRound-1] = curGuess;
 
         saveRounds();
 
-        google.maps.event.trigger(state.GoogleMapsObj, "updateAICurRound", state.AI_PLAYER.rounds[curGuess.curRound-1] );
+        google.maps.event.trigger(state.GoogleMapsObj, "updatedAICurRound", state.AI_PLAYER.rounds[curGuess.curRound-1] );
     }
     
     function saveRounds(){
         let rounds = [];
+
         state.AI_PLAYER.rounds.forEach((el, idx) =>{
             if (!el) return;
             rounds[idx] = {
@@ -1136,6 +1171,9 @@
                 badResponse: el.badResponse,
                 curMapId: el.curMapId,
                 playerMapClickPos: el.playerMapClickPos,
+                mapMaker: el.mapMaker,
+                state: el.state,
+                savedDate: Date.now(),
             };
         });
 
@@ -1147,13 +1185,40 @@
         localStorage["aipal"] = JSON.stringify(ls);
     }
     
+    async function doSendToMapMaking(curGuess){
+        if (curGuess.badResponse) return;
+
+        const _points = d2p(curGuess.distance, 20037508.342789244);
+   
+        if (_points < 4850) return;
+
+        let deleteThis = (curGuess.mapMaker.id > -1)? curGuess.mapMaker.id : null;
+
+        const obj = { ...curGuess.mapMaker };
+        obj.tags = [...curGuess.mapMaker.tags];
+
+        obj.tags.push(JSON.stringify({msg: curGuess?.json?.message, pts: _points}));
+
+        const latLng = curGuess.latLng || curGuess._latLng || curGuess.countryLatLng;
+
+        obj.tags.push(JSON.stringify(latLng));
+
+        let newId = await sendLocation(obj, curGuess.curRound, _points, deleteThis);
+
+        const id = curGuess.mapMaker.id;
+
+        curGuess.mapMaker.id = newId[id];
+
+        saveRounds();
+    }
+
     function isDuelsGame(){
         return /duels/.test(location.href);
     }
 
     async function talkToAi(panoId){
         const _round = state?.gameInfo?.currentRoundNumber || state?.gameInfo?.round;
-
+        
         if (!state?.GoogleMapsObj) {
             setTimeout(()=>{
                 talkToAi(panoId);
@@ -1168,12 +1233,26 @@
             });
             return;
         }
+        
+        const pov = state.svPlayer.getPov();
+        const zoom = state.svPlayer.getZoom();
+        const panoid =state.svPlayer.getPano(); 
 
         let curGuess = { 
             state: "Downloading Panorama", 
             svPos: state.svPlayer.position.toJSON(), 
             curRound : _round? _round: null, 
             curMapId : getMapId(),
+            mapMaker: 	{
+                id: -1,
+                location: state.svPlayer.position.toJSON(),
+                panoId: panoid ?? null,
+                heading: pov.heading,
+                pitch: pov.pitch,
+                zoom: zoom === 0 ? null : zoom,
+                tags: [Date.now()+""],
+                flags: panoid ? 1 : 0
+            },
         }; 
 
         if (!state.AI_PLAYER){
@@ -1186,6 +1265,23 @@
             //state.AI_PLAYER.curXMLRequest.abort();
         }
 
+        const newRusltListener = google.maps.event.addListener(state.GoogleMapsObj, "result page", ()=>{
+            google.maps.event.removeListener(newRusltListener);
+            showAIGuess_normalResultPage(curGuess);
+        });
+
+        if (!isDuelsGame() && state?.AI_PLAYER?.rounds[_round-1]?.state == 'Done'){
+                        
+            curGuess = state?.AI_PLAYER?.rounds[_round-1];
+
+            setTimeout(()=>{
+                // talkToAi gets called before the page is done loading.
+                newAlert(`Retrieved saved information for round #${_round}!`, "check");
+                getReadyForResultPage(curGuess);
+            }, 1000);
+            return;
+        }
+
         if (!_canvas){
             _canvas = document.createElement('canvas');
             _canvas.id = "canvas";
@@ -1196,18 +1292,12 @@
             document.body.appendChild(_canvas);
         }
 
-        const newRusltListener = google.maps.event.addListener(state.GoogleMapsObj, "result page", ()=>{
-            google.maps.event.removeListener(newRusltListener);
-            showAIGuess_normalResultPage(curGuess);
-        });
-
         const canvas = _canvas; 
         let size = 512;
         let panos = [];
         let xmax = 0;
         let ymax = 0;
         let url = ``;
-
          
         newAlert('Started downloading panorama!');
 
@@ -1367,8 +1457,6 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
         //const resToJSON = {"code":5000,"error":"Method not allowed"};
         const resToJSON = JSON.parse(XMLHttpRequestObj.response);
 
-        console.log(curGuess?.curRound, resToJSON?.message);
-
         const errorRegExp_1 = new RegExp("There is not enough context in the photo to determine a location. Please try a more interesting photo", "is");
 
         if (resToJSON?.error || errorRegExp_1.test(resToJSON?.message)){
@@ -1398,19 +1486,21 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
         curGuess.countryLatLng = coords.countryLatLng;
 
         curGuess.json = resToJSON;
-        
+
+        curGuess.state = "Done";
+
+        newAlert(`AI has returned an answer for round #${curGuess.curRound}!`, "check");
+
+        getReadyForResultPage(curGuess);
+    }
+    
+    function getReadyForResultPage(curGuess){
         const newRoundListener = google.maps.event.addListener(state.GoogleMapsObj, "new round", ()=>{
             google.maps.event.removeListener(newRoundListener);
             hideAIGuess(curGuess);
         });
 
-        curGuess.state = "Done";
-
         google.maps.event.trigger(state.GoogleMapsObj, "AI response finished", curGuess);
-
-        newAlert(`AI has returned an answer for round #${curGuess.curRound}!`, "check");
-
-        // console.log("curGuess", curGuess);
     }
 
     async function getCoords(resToJSON, country){
@@ -1514,7 +1604,8 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
 
                 let resJSON = await v3APIRes.clone().json();
                 
-                state.gameInfo = resJSON;
+                if (!resJSON?.error)
+                    state.gameInfo = resJSON;
 
                 return new Promise((res) => {
                     res(v3APIRes);
@@ -1566,8 +1657,9 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
        }
 
        function shootTarget(start, target){
-//          const dist = distanceInPx(state.GoogleMapsObj, start, target);
-           
+            const dist1 = distanceInPx(state.GoogleMapsObj, start, target);
+            if (dist1 < 300) return;
+
             const dist = window.innerWidth;
 
             const lineSymbol = {
@@ -1579,20 +1671,12 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
             };
             
             for (let n = 0; n < 3; n++){
+                let p = 0;
+
                 setTimeout(()=>{
                     let offset = 0;
-                    let line = null;
-                    const inter = setInterval(() => {
-                        line?.setMap(null);
 
-                        if (offset > dist) { //window.innerWidth) {
-                            clearInterval(inter);
-                            return;
-                        }
-
-                        offset += 10;
-
-                        line = new google.maps.Polyline({
+                    const line = new google.maps.Polyline({
                             path: [start, target],
                             strokeColor: "#fb443b", // "#fb443b" Red marker color
                             fillColor: "red",
@@ -1608,7 +1692,21 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
                             ],
                             map: state.GoogleMapsObj,
                         });
-                    }, 20);
+
+                    function frames(){
+                        if (offset > dist) { 
+                            line?.setMap(null);
+                            return;
+                        }
+
+                        offset += 10;
+
+                        const icons = line.get('icons');
+                        icons[0].offset = offset + "px";
+                        line.set('icons', icons);
+                        requestAnimationFrame(frames);
+                    }
+                    frames();
                 }, n * 500);
             }
             return { 
@@ -1620,6 +1718,20 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
             };
        }
 
+    async function sendLocation(location, round, points, deleteThis){
+        let confiRm = confirm(`Send round #${round}, with ${points} pts, to map-making.app?`);
+        if (!confiRm) return;
+
+        // TODO: Remove number when uploading to github.
+        return importLocations( g_apikey, [location], (deleteThis? [deleteThis] : []));
+    }
+
+    //
+    // TODO remove everything below this line when uploading to github
+    //
+{
+}
+    // To this line
 })();
 
 //const westernCountries = {};
@@ -1679,3 +1791,87 @@ function distanceInPx(map, marker1, marker2) {
 
     return d;
 }
+
+const MAP_MAKING_API_KEY = `12bd2940-9b54-4217-99fd-ba90f50a7f33`;
+
+async function mmaFetch(url, options = {}) {
+	const response = await fetch(new URL(url, 'https://map-making.app'), {
+		...options,
+		headers: {
+			accept: 'application/json',
+			authorization: `API ${MAP_MAKING_API_KEY.trim()}`,
+			'content-type': 'application/json'
+		},
+		body: JSON.stringify({
+			edits: [{
+				action: { type: 4 },
+				create: locations,
+				remove: []
+			}]
+		})
+	});
+
+	if (!response.ok) {
+		let message = 'Unknown error';
+		try {
+			const res = await response.json();
+			if (res.message) {
+				message = res.message;
+			}
+		} catch {
+		}
+		alert(`An error occurred while trying to connect to Map Making App. ${message}`);
+		throw Object.assign(new Error(message), { response });
+	}
+	return response;
+}
+
+async function importLocations(mapId, addLocs = [], removeLocs = []) {
+	const response = await fetch(`https://map-making.app/api/maps/${mapId}/locations`, {
+		method: 'post',
+		headers: {
+			accept: 'application/json',
+			authorization: `API ${MAP_MAKING_API_KEY.trim()}`,
+			'content-type': 'application/json'
+		},
+		body: JSON.stringify({
+			edits: [{
+				action: { type: 4 }, // 4
+				create: addLocs,
+				remove: removeLocs 
+			}]
+		})
+	});
+
+	if (!response.ok) {
+		let message = 'Unknown error';
+		try {
+			const res = await response.json();
+			if (res.message) {
+				message = res.message;
+			}
+		} catch {
+		}
+		alert(`An error occurred while trying to connect to Map Making App. ${message}`);
+		throw Object.assign(new Error(message), { response });
+	}
+
+	return await response.json();
+
+//	const response = await mmaFetch(`/api/maps/${mapId}/locations`, {
+//		method: 'post',
+//		headers: {
+//			'content-type': 'application/json'
+//		},
+//		body: JSON.stringify({
+//			edits: [{
+//				action: { type: 4 },
+//				create: locations,
+//				remove: []
+//			}]
+//		})
+//	});
+//	await response.json();
+}
+
+//console.log(getMaps());
