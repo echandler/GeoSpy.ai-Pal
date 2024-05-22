@@ -2,7 +2,7 @@
 // @name         GeoSpy.ai Pal 
 // @description  Play GeoGuessr with an AI pal! 
 // @namespace    AI scripts 
-// @version      0.1.1
+// @version      0.1.2
 // @author       echandler
 // @match        https://www.geoguessr.com/*
 // @grant        none
@@ -1656,9 +1656,18 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
         }, 100);
        }
 
-       function shootTarget(start, target){
-            const dist1 = distanceInPx(state.GoogleMapsObj, start, target);
-            if (dist1 < 300) return;
+       async function shootTarget(start, target){
+            const pixel_dist = await new Promise((res, reg) =>{
+                const __inter = setInterval(() => {
+                    // On refresh distanceInPx() might not work until the map is zoomed.
+                    const dist = distanceInPx(state.GoogleMapsObj, start, target);
+                    if (dist == null) return;
+                    clearInterval(__inter);
+                    res(dist);
+                }, 500);
+            });
+
+            if (pixel_dist < 300) return;
 
             const dist = window.innerWidth;
 
@@ -1704,6 +1713,7 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
                         const icons = line.get('icons');
                         icons[0].offset = offset + "px";
                         line.set('icons', icons);
+
                         requestAnimationFrame(frames);
                     }
                     frames();
@@ -1722,22 +1732,18 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
         let confiRm = confirm(`Send round #${round}, with ${points} pts, to map-making.app?`);
         if (!confiRm) return;
 
-        // TODO: Remove number when uploading to github.
         return importLocations( g_apikey, [location], (deleteThis? [deleteThis] : []));
     }
 
     //
-    // TODO remove everything below this line when uploading to github
+    // TODO: remove everything below this line when uploading to github.
     //
 {
 }
-    // To this line
+    //
+    // To here. 
+    //
 })();
-
-//const westernCountries = {};
-//const westernCountriesArray = ["canada", "chile", "mexico", "usa", "united states", "guatemala", "panama", "colombia", "argentina", "brazil", "bolivia", "ecuador", "ireland", "portugal", "senegal", "costa rica", "venezuela", "peru", "suriname", "puerto rico", "dominican republic", "uruguay","paraguay", "guyana", "french guiana", "nicaragua", "honduras",
-//                                "el salvador", "belize", "curaçao", "aruba","virgin islands", "british virgin islands", "bermuda" ];
-//westernCountriesArray.forEach(country => westernCountries[country] = true); 
 
 // For fixing common AI response error. Sometimes it doesn't put a negative sign in front of coordinates.
 const nwCountries = {};
@@ -1747,26 +1753,27 @@ const swCountries = {};
 const sw =  ["chile","argentina","brazil","bolivia","ecuador","peru","uruguay","paraguay"];
 sw.forEach(country => swCountries[country] = true); 
 
-    document.head.insertAdjacentHTML(
+document.head.insertAdjacentHTML(
     // Append style sheet for this script. 
     "beforeend",
     `<style>
-    div.gm-style-iw.gm-style-iw-c {
-        padding-right: 12px !important;
-        padding-bottom: 12px !important;
-    }
-    
-    div.gm-style-iw.gm-style-iw-c:focus-visible {
-        outline: none;
-    }
+        div.gm-style-iw.gm-style-iw-c {
+            padding-right: 12px !important;
+            padding-bottom: 12px !important;
+            border-radius: 0px;
+        }
 
-    div.gm-style-iw.gm-style-iw-c div.gm-style-iw-d {
-        overflow: unset !important;
-    }
+        div.gm-style-iw.gm-style-iw-c:focus-visible {
+            outline: none;
+        }
 
-    #geospy_response a>span:hover {
-        color: green;
-    }
+        div.gm-style-iw.gm-style-iw-c div.gm-style-iw-d {
+            overflow: unset !important;
+        }
+
+        #geospy_response a>span:hover {
+            color: green;
+        }
     </style>`);
 
 
@@ -1786,6 +1793,10 @@ function distance(lat1, lon1, lat2, lon2) {
 }
 
 function distanceInPx(map, marker1, marker2) {
+    if (!map.getProjection()){
+        return null;
+    }
+
     var p1 = map.getProjection().fromLatLngToPoint(marker1);
     var p2 = map.getProjection().fromLatLngToPoint(marker2);
 
@@ -1796,45 +1807,12 @@ function distanceInPx(map, marker1, marker2) {
     return d;
 }
 
-
-async function mmaFetch(url, options = {}) {
-	const response = await fetch(new URL(url, 'https://map-making.app'), {
-		...options,
-		headers: {
-			accept: 'application/json',
-			authorization: `API ${MAP_MAKING_API_KEY.trim()}`,
-			'content-type': 'application/json'
-		},
-		body: JSON.stringify({
-			edits: [{
-				action: { type: 4 },
-				create: locations,
-				remove: []
-			}]
-		})
-	});
-
-	if (!response.ok) {
-		let message = 'Unknown error';
-		try {
-			const res = await response.json();
-			if (res.message) {
-				message = res.message;
-			}
-		} catch {
-		}
-		alert(`An error occurred while trying to connect to Map Making App. ${message}`);
-		throw Object.assign(new Error(message), { response });
-	}
-	return response;
-}
-
 async function importLocations(mapId, addLocs = [], removeLocs = []) {
 	const response = await fetch(`https://map-making.app/api/maps/${mapId}/locations`, {
 		method: 'post',
 		headers: {
 			accept: 'application/json',
-			authorization: `API ${MAP_MAKING_API_KEY.trim()}`,
+			authorization: `API ${window.MAP_MAKING_API_KEY.trim()}`,
 			'content-type': 'application/json'
 		},
 		body: JSON.stringify({
@@ -1860,21 +1838,4 @@ async function importLocations(mapId, addLocs = [], removeLocs = []) {
 	}
 
 	return await response.json();
-
-//	const response = await mmaFetch(`/api/maps/${mapId}/locations`, {
-//		method: 'post',
-//		headers: {
-//			'content-type': 'application/json'
-//		},
-//		body: JSON.stringify({
-//			edits: [{
-//				action: { type: 4 },
-//				create: locations,
-//				remove: []
-//			}]
-//		})
-//	});
-//	await response.json();
 }
-
-//console.log(getMaps());
