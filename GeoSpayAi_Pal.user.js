@@ -2,7 +2,7 @@
 // @name         GeoSpy.ai Pal 
 // @description  Play GeoGuessr with an AI pal! 
 // @namespace    AI scripts 
-// @version      0.1.2
+// @version      0.1.4
 // @author       echandler
 // @match        https://www.geoguessr.com/*
 // @grant        none
@@ -99,7 +99,6 @@
             };
         };// End of injector().
 
-
     let mainObserver = new MutationObserver((mutations) => {
         // Started making this observer with good intentions!
         // I just don't know the best way of checking for new rounds.
@@ -120,7 +119,7 @@
                         google.maps.event.trigger(state.GoogleMapsObj, "leaving result page");
                     }
                      
-                    if (m.classList.length < 3 && /in-game_background/i.test(classListString)){
+                    if ((m.classList.length < 3 && /in-game_background/i.test(classListString))){
                         // Possibly starting new game.
                         const onResultPage =document.body.querySelector("[class*='result']"); 
                         state.onResultPage = onResultPage? true: false;
@@ -194,7 +193,7 @@
                         google.maps.event.trigger(state.GoogleMapsObj, "challenge game final score page");
                     }
 
-                    if (m.getAttribute("data-qa") == "guess-map" || (m.classList.length < 3 && /in-game_background/i.test(classListString))){
+                    if (m.getAttribute("data-qa") == "guess-map" || (m.classList.length < 3 && /in-game_background/i.test(classListString)) || /gm-style/.test(classListString)){
                         // Possibly starting new game.
                         // Possibly refreshing page in challenge game.
 
@@ -217,8 +216,8 @@
                                 });                                 
                               
                             } else {
-                                onResultPage ? google.maps.event.trigger(state.GoogleMapsObj, "result page")
-                                    : google.maps.event.trigger(state.GoogleMapsObj, "new round");
+                                onResultPage ? google.maps.event.trigger(state.GoogleMapsObj, "result page") 
+                                             : google.maps.event.trigger(state.GoogleMapsObj, "new round");
                             }
                         } catch(e){
                            // newAlert("Can't find google maps object. If refreshing the page doesn't work, contact author of script.")
@@ -300,6 +299,7 @@
         state.listenersSet = true;
 
         state.GoogleMapsObj.addListener('click', (e) => {
+            if (state.onResultPage) return;
             state.playerMapClickPos = e.latLng.toJSON();
         });
 
@@ -725,6 +725,7 @@
     }
     
     function endOfGame(){
+        debugger;
         state.needToTalkToAi = true;     
         state.curPanoId = null; 
         state.curLatLng = null; 
@@ -1624,7 +1625,16 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
         const _x = `<span style="color: red;">&#10006;</span>`;
 
         const body = document.createElement('div');
-        body.style.cssText = `position: absolute; left: -22em;  padding: 10px; transition: 1s ease-in-out all; background-color: white; font-size: 18px;font-family: var(--default-font); z-index: 999999;`;
+        body.style.cssText = `position: absolute; left: -22em;  padding: 10px; transition: 1s ease-in-out all; font-size: 18px; font-family: var(--default-font); z-index: 999999;`;
+        if (!check && !x){
+            body.classList.add("alert-primary");
+        } else if (check){
+            body.classList.add("alert-success");
+        } else if (x){
+            body.classList.add("alert-danger");
+        }
+
+        body.classList.add("alert");
         body.innerHTML = `<div>${check? _check: x? _x:''} ${msg}</div>` ;
 
         document.body.appendChild(body);
@@ -1641,19 +1651,19 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
                 p++;
             });
 
-            setTimeout(()=>{
-                    body.style.top ="-10em";
-                    body.style.opacity = '0';
-                    body._removed = true;
-                    let p = 0;
-                    ar.forEach((el)=>{
-                        if (el._removed) return;
-                        el.style.top = (p + 1)* 3 + 'em';
-                        p++;
-                    });
-                    setTimeout(()=>{ body.remove(); }, 1200);
-                }, 4000);
-        }, 100);
+             setTimeout(()=>{
+                     body.style.top ="-10em";
+                     body.style.opacity = '0';
+                     body._removed = true;
+                     let p = 0;
+                     ar.forEach((el)=>{
+                         if (el._removed) return;
+                         el.style.top = (p + 1)* 3 + 'em';
+                         p++;
+                     });
+                     setTimeout(()=>{ body.remove(); }, 1200);
+                 }, 4000);
+            }, 100);
        }
 
        async function shootTarget(start, target){
@@ -1761,6 +1771,23 @@ document.head.insertAdjacentHTML(
             padding-right: 12px !important;
             padding-bottom: 12px !important;
             border-radius: 0px;
+            translate: 0px 0px;
+            animation: show 600ms 100ms cubic-bezier(0.38, 0.97, 0.56, 0.76) forwards;
+        }
+        
+        .gm-style .gm-style-iw-tc{
+            z-index: -999;
+        }
+
+        .gm-style .gm-style-iw-tc::after{
+            translate: 0px -15px;
+            animation: show 300ms 0ms cubic-bezier(0.38, 0.97, 0.56, 0.76) forwards;
+        }
+
+        @keyframes show {
+            100% {
+                translate: 0px 0px;
+            }
         }
 
         div.gm-style-iw.gm-style-iw-c:focus-visible {
@@ -1769,10 +1796,44 @@ document.head.insertAdjacentHTML(
 
         div.gm-style-iw.gm-style-iw-c div.gm-style-iw-d {
             overflow: unset !important;
-        }
+        }/new
 
         #geospy_response a>span:hover {
             color: green;
+        }
+
+        /* classes are from Bootstrap */
+        
+	.alert {
+            position: relative;
+            padding: 0.75rem 1.25rem;
+            margin-bottom: 1rem;
+            border: 1px solid transparent;
+            border-radius: 0.25rem;
+        }
+
+        .alert-info {
+            color: #0c5460;
+            background-color: #d1ecf1;
+            border-color: #bee5eb;
+        }
+
+        .alert-primary {
+            color: #004085;
+            background-color: #cce5ff;
+            border-color: #b8daff;
+        }
+
+        .alert-danger {
+            color: #721c24;
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+        }
+
+        .alert-success {
+            color: #155724;
+            background-color: #d4edda;
+            border-color: #c3e6cb;
         }
     </style>`);
 
