@@ -2,7 +2,7 @@
 // @name         GeoSpy.ai Pal 
 // @description  Play GeoGuessr with an AI pal! 
 // @namespace    AI scripts 
-// @version      0.1.5
+// @version      0.1.6
 // @author       echandler
 // @match        https://www.geoguessr.com/*
 // @grant        none
@@ -12,7 +12,6 @@
 // @license      MIT
 // @noframes
 // ==/UserScript==
-
 
 (function() {
     'use strict';
@@ -193,7 +192,7 @@
                         google.maps.event.trigger(state.GoogleMapsObj, "challenge game final score page");
                     }
 
-                    if (m.getAttribute("data-qa") == "guess-map" || (m.classList.length < 3 && /in-game_background/i.test(classListString)) || /gm-style/.test(classListString)){
+                    if (m.getAttribute("data-qa") == "guess-map" || (m.classList.length < 3 && /in-game_background/i.test(classListString))){
                         // Possibly starting new game.
                         // Possibly refreshing page in challenge game.
 
@@ -314,9 +313,9 @@
         google.maps.event.addListener(state.GoogleMapsObj, "standard game final score page", showAIGuess_standard_finalResultsPage );
         google.maps.event.addListener(state.GoogleMapsObj, "challenge game final score page", ()=> setTimeout(showAIGuess_challenge_finalResultsPage, 1000) );
 
-      //  google.maps.event.addListener(state.GoogleMapsObj, "new round", forTesting.unHidePage);
-      //  google.maps.event.addListener(state.GoogleMapsObj, "result page", forTesting.hidePage);
-      //  google.maps.event.addListener(state.GoogleMapsObj, "AI response finished", forTesting.putMarkerOnMap);
+     // google.maps.event.addListener(state.GoogleMapsObj, "new round", forTesting.unHidePage);
+     // google.maps.event.addListener(state.GoogleMapsObj, "result page", forTesting.hidePage);
+     // google.maps.event.addListener(state.GoogleMapsObj, "AI response finished", forTesting.putMarkerOnMap);
     }
     
     function sv_position_changed(sv){
@@ -525,6 +524,7 @@
         const AI_row = firstRow.cloneNode(true);
         const AI_userLink = AI_row.querySelector('div[class*="userLink"]'); 
         const AI_nick = AI_row.querySelector(`div[class*="user-nick_nick_"]`);        
+        const AI_nick_flag = AI_row.querySelector(`div[class*="user-nick_flag_"]`);        
         const AI_avatar = AI_row.querySelector(`div[class*="avatar"]`);        
         const AI_resultsPos = AI_row.querySelector(`span[class*="results_position"]`);
         const AI_resultsScores= AI_row.querySelectorAll(`div[class*="_score_"]`);
@@ -555,8 +555,8 @@
             AI_userLink.querySelector('a').href = "https://geospy.ai/";
         }
 
-        AI_nick.nextSibling.remove(); // Remove flag.
-
+        //AI_nick.nextSibling.remove(); // Remove flag.
+        AI_nick_flag.remove();
         AI_nick.innerText = "GeoSpy.ai Pal";
 
         AI_avatar.style.visibility = 'hidden';
@@ -597,10 +597,10 @@
                 if (idx === 5){
                     // Total element
 
-                    el.innerText = `${totals[0]} pts`;
+                    el.innerText = `${totals[0].toLocaleString()} pts`;
 
                 } else if (state.AI_PLAYER.rounds[idx]){
-                    el.innerText = `${state.AI_PLAYER.rounds[idx].points} pts`;
+                    el.innerText = `${state.AI_PLAYER.rounds[idx].points.toLocaleString()} pts`;
                 }
             });
         
@@ -729,7 +729,6 @@
     }
     
     function endOfGame(){
-        debugger;
         state.needToTalkToAi = true;     
         state.curPanoId = null; 
         state.curLatLng = null; 
@@ -799,7 +798,9 @@ const svgMarker = {
             // Hack to prevent infowindow from closing if player is reading the ai response message.
             _infoWin_open.call(infoWindow, obj); 
             setTimeout(()=>{
+                try{
                 document.getElementById(`geospy_response_${_id}`).addEventListener("mousedown", ()=> { clearTimeout(closeInfoWindowTimeout)});
+                } catch(e){}
             }, 500);
         };
 
@@ -1045,9 +1046,9 @@ const svgMarker = {
         const backgroundCSS = `background-color: #243147;`;
         // Standard game infowindow content
         const infoWindowContent = `<div id="geospy_response_${_id}" style="color:#bac1cb;font-family: var(--default-font);${backgroundCSS}">
-                            Response from GeoSpy.ai Pal:
+                            Response from GeoSpy.ai:
                             <pre style="max-width: 30em; background-color: #1f3246; overflow-x: scroll; color: #F2AC18;
-                                        padding: 5px; scrollbar-color: #868b92 #1f3246; 
+                                        padding: 5px; scrollbar-color: #475869 #1f3246; 
                                         scrollbar-width: thin;">${AIMsg}</pre>
                             Coordinates for calculating points: 
                                 <span ${_latLng ?`onclick="showAltsArray[${curGuess.curRound}]({lat:${_latLng.lat}, lng:${_latLng.lng}}, ${_id});"`:''} style="color:${neg ?"#1DF218": "#F2AC18"}" title="**Click for addition coordinate options** \nIf the coord is green: it was modified to address a common \nerror with the AI response and could be wrong." >
@@ -1057,7 +1058,7 @@ const svgMarker = {
                                 ${isCountryLatLng ?`<div style="color: #1DF218;">Using generic country coordinates.</div>`:``}
                                 ${isBermuda? `<div style="color: #1DF218;">Could not find country name or coordinates in response.</div>`: "" }
                             <br>
-                            <a style="text-decoration: underline;" id="googMapLink${_id}" href="https://www.google.com/maps/search/?api=1&query=${latLng.lat},${latLng.lng}" target="_blank"> View on Google Maps</a>
+                            <a style="text-decoration: underline; text-decoration-color: #475869;" id="googMapLink${_id}" href="https://www.google.com/maps/search/?api=1&query=${latLng.lat},${latLng.lng}" target="_blank"> View on Google Maps</a>
                             <br> <br>
                             Hint: Drag marker anywhere that you want.
                             <br> <br>
@@ -1339,6 +1340,27 @@ const svgMarker = {
          
         newAlert('Started downloading panorama!');
 
+        /* Mock response for testing */
+/*        
+         AIServerResponse({
+            // Testing weird decimal coords with ′ symbol.
+            //response: `{"message":"Country: Sweden \\nCity: Sigtuna \\nExplanation: The architecture of the ... city. The coordinates of Sigtuna are 59°36′N 17°43′E."}`
+
+            // Testing minutes second coords
+            //response: '{"message": "Country: Indonesia\\nExplanation: The photo was taken in a rural area of Indonesia. The vegetation is lush and green, and the sky is cloudy. There are a few houses in the distance, and the road is unpaved. The coordinates of the photo are: 7°59\'59.9\\"S 112°34\'59.9\\"E.","sup_data":[]}'                                                                                                  
+
+            // Testing wierd decimal coords
+            //response: '{"message":" Country: Norway\\nExplanation: The photo was taken on a bridge in Norway. The ... turning brown.\\nCoordinates: 60.4739° N, 7.0112° E","sup_data":[]}'
+
+            // Testing no coords.
+            // response: '{"message":" Country: Norway\\nExplanation: The photo was taken on a bridge in Norway. The bridge is surrounded by mountains and there is a river running underneath it. The photo was taken in the fall, as the leaves on the trees are turning brown.\\nCoordinates: ","sup_data":[]}'
+
+            // Testing no country and no country.
+             response: '{"message":" Country: \\nExplanation: The photo was taken on a bridge in Norway. The bridge is surrounded by mountains and there is a river running underneath it. The photo was taken in the fall, as the leaves on the trees are turning brown.\\nCoordinates: ","sup_data":[]}'
+         }, curGuess);
+         return;
+ */       
+
         imageUrlToBase64(0,0);
 
         function imageUrlToBase64 (x, y) {
@@ -1451,27 +1473,6 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
     }
     
     function sendRequestToAi(payLoad, curGuess){
-        /* Mock response for testing */
-        /*
-         AIServerResponse({
-            // Testing weird decimal coords
-            //response: `{"message":"Country: Sweden \\nCity: Sigtuna \\nExplanation: The architecture of the buildings in the image is similar to that of many buildings in Sigtuna, Sweden. Additionally, the cobblestone streets and the lack of cars suggest that the image was taken in a historic part of the city. The coordinates of Sigtuna are 59°36′N 17°43′E."}`
-
-            // Testing minutes second coords
-            response: '{"message": "Country: Indonesia\\nExplanation: The photo was taken in a rural area of Indonesia. The vegetation is lush and green, and the sky is cloudy. There are a few houses in the distance, and the road is unpaved. The coordinates of the photo are: 7°59\'59.9\\"S 112°34\'59.9\\"E.","sup_data":[]}'                                                                                                  
-
-            // Testing wierd decimal coords
-            //response: '{"message":" Country: Norway\\nExplanation: The photo was taken on a bridge in Norway. The bridge is surrounded by mountains and there is a river running underneath it. The photo was taken in the fall, as the leaves on the trees are turning brown.\\nCoordinates: 60.4739° N, 7.0112° E","sup_data":[]}'
-
-            // Testing no coords.
-            // response: '{"message":" Country: Norway\\nExplanation: The photo was taken on a bridge in Norway. The bridge is surrounded by mountains and there is a river running underneath it. The photo was taken in the fall, as the leaves on the trees are turning brown.\\nCoordinates: ","sup_data":[]}'
-
-            // Testing no country
-            // response: '{"message":" Country: \\nExplanation: The photo was taken on a bridge in Norway. The bridge is surrounded by mountains and there is a river running underneath it. The photo was taken in the fall, as the leaves on the trees are turning brown.\\nCoordinates: ","sup_data":[]}'
-         }, curGuess);
-         return;
-       */ 
-
         curGuess.state = "Sending XMLHttpRequest to AI server.";
             
         let xmlr = new XMLHttpRequest();
@@ -1562,10 +1563,18 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
          
         latLng = latLng == null  
                 // Check for degrees.
-                ? resToJSON?.message?.match(DDReg)
+                ? resToJSON?.message?.match(DDReg)?.filter((num)=> parseFloat(num) < 180/*Can't be bigger than 180*/)
                 : latLng;
+        
+        //latLng =  Array.isArray(latLng)? latLng.filter((num)=> parseFloat(num) < 180/*Can't be bigger than 180*/) : latLng;
 
         let countryLatLng = null;
+        
+        if (latLng && Array.isArray(latLng) && latLng.length > 2){
+            // Found too many coordinates, don't know which ones are legit.
+            // Player will have to sort it out.
+            latLng = null;
+        }
 
         if (latLng && Array.isArray(latLng) && /[°′]/g.test(latLng[0])){
             // Check for ° and ′ symbols.
@@ -1801,14 +1810,13 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
         let confiRm = confirm(`Send round #${round}, with ${points} pts, to map-making.app?`);
         if (!confiRm) return;
 
-        return importLocations( g_apikey, [location], (deleteThis? [deleteThis] : []));
+        return importLocations( mapIdMapMakingApp, [location], (deleteThis? [deleteThis] : []));
     }
 
     //
-    // TODO: remove everything below this line when uploading to github.
+    // TODO: remove delete everything below this line when uploading to github.
     //
 {
-
 }
     //
     // To here. 
