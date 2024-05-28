@@ -2,7 +2,7 @@
 // @name         GeoSpy.ai Pal 
 // @description  Play GeoGuessr with an AI pal! 
 // @namespace    AI scripts 
-// @version      0.1.6
+// @version      0.1.7
 // @author       echandler
 // @match        https://www.geoguessr.com/*
 // @grant        none
@@ -758,17 +758,18 @@
         if (curGuess.marker) {
             curGuess.marker.setMap(null);
         }
-const svgMarker = {
-    path: "M0 0q2.906 0 4.945 2.039t2.039 4.945q0 1.453-0.727 3.328t-1.758 3.516-2.039 3.070-1.711 2.273l-0.75 0.797q-0.281-0.328-0.75-0.867t-1.688-2.156-2.133-3.141-1.664-3.445-0.75-3.375q0-2.906 2.039-4.945t4.945-2.039z",
-    fillColor: '#243147',
-    fillOpacity: 1.0,
-    strokeWeight: 0,
-    strokeColor: "blue",
-    rotation: 0,
-    scale: 2,
-    anchor: new google.maps.Point(0, 20),
-               labelOrigin: new google.maps.Point(0,7),
-  };
+
+        const svgMarker = {
+            path: "M0 0q2.906 0 4.945 2.039t2.039 4.945q0 1.453-0.727 3.328t-1.758 3.516-2.039 3.070-1.711 2.273l-0.75 0.797q-0.281-0.328-0.75-0.867t-1.688-2.156-2.133-3.141-1.664-3.445-0.75-3.375q0-2.906 2.039-4.945t4.945-2.039z",
+            fillColor: '#243147',
+            fillOpacity: 1.0,
+            strokeWeight: 0,
+            strokeColor: "blue",
+            rotation: 0,
+            scale: 2,
+            anchor: new google.maps.Point(0, 20),
+                    labelOrigin: new google.maps.Point(0,7),
+        };
 
         curGuess.marker = new google.maps.Marker({
             position: latLng,
@@ -834,7 +835,7 @@ const svgMarker = {
             setTimeout(() => {
                 // Don't want battle geoguessr's animation.
                 state.GoogleMapsObj.fitBounds(_bounds);
-            }, 1000);
+            }, 750);
         }
 
         curGuess.marker.addListener('click', () => {
@@ -1043,7 +1044,8 @@ const svgMarker = {
         
         const backgroundURL = `right bottom no-repeat url('data:image/jpeg;base64,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')`;
         //const backgroundCSS= `background: ${backgroundURL}; background-size: 70%;`;
-        const backgroundCSS = `background-color: #243147;`;
+        //const backgroundCSS = `background-color: #243147;`;
+        const backgroundCSS = ``;
         // Standard game infowindow content
         const infoWindowContent = `<div id="geospy_response_${_id}" style="color:#bac1cb;font-family: var(--default-font);${backgroundCSS}">
                             Response from GeoSpy.ai:
@@ -1060,7 +1062,7 @@ const svgMarker = {
                             <br>
                             <a style="text-decoration: underline; text-decoration-color: #475869;" id="googMapLink${_id}" href="https://www.google.com/maps/search/?api=1&query=${latLng.lat},${latLng.lng}" target="_blank"> View on Google Maps</a>
                             <br> <br>
-                            Hint: Drag marker anywhere that you want.
+                            Hint: Drag marker anywhere you want.
                             <br> <br>
                             </div>`;
 
@@ -1091,16 +1093,6 @@ const svgMarker = {
         return location.pathname.replace(/^\/[a-z]{2}\//i, "/"); 
     }
     
-    function getGameInfo(){
-        const __NEXT_DATA__ = document.getElementById("__NEXT_DATA_");
-        if (window?.google){
-            return window.google;
-        } else if (__NEXT_DATA__){
-            const json = JSON.parse(__NEXT_DATA__.innerHTML);
-            
-        }_
-    }
-
     function getMapId(){
         return location.href.replace(/.*\/(.*)/, "$1");
     }
@@ -1121,9 +1113,6 @@ const svgMarker = {
         }
     }
 
-
-   // <canvas id="canvas" height="4096" width="8192"></canvas>
-    
     function updateAICurRound(curGuess, _latLng){
 
         if (!google?.maps.geometry){
@@ -1236,11 +1225,9 @@ const svgMarker = {
         const obj = { ...curGuess.mapMaker };
         obj.tags = [...curGuess.mapMaker.tags];
 
-        obj.tags.push(JSON.stringify({msg: curGuess?.json?.message, pts: _points}));
-
         const latLng = curGuess.latLng || curGuess._latLng || curGuess.countryLatLng;
 
-        obj.tags.push(JSON.stringify(latLng));
+        obj.tags.push(JSON.stringify({msg: curGuess?.json?.message, pts: _points, latlng: latLng}));
 
         let newId = await sendLocation(obj, curGuess.curRound, _points, deleteThis);
 
@@ -1340,26 +1327,9 @@ const svgMarker = {
          
         newAlert('Started downloading panorama!');
 
-        /* Mock response for testing */
-/*        
-         AIServerResponse({
-            // Testing weird decimal coords with ′ symbol.
-            //response: `{"message":"Country: Sweden \\nCity: Sigtuna \\nExplanation: The architecture of the ... city. The coordinates of Sigtuna are 59°36′N 17°43′E."}`
-
-            // Testing minutes second coords
-            //response: '{"message": "Country: Indonesia\\nExplanation: The photo was taken in a rural area of Indonesia. The vegetation is lush and green, and the sky is cloudy. There are a few houses in the distance, and the road is unpaved. The coordinates of the photo are: 7°59\'59.9\\"S 112°34\'59.9\\"E.","sup_data":[]}'                                                                                                  
-
-            // Testing wierd decimal coords
-            //response: '{"message":" Country: Norway\\nExplanation: The photo was taken on a bridge in Norway. The ... turning brown.\\nCoordinates: 60.4739° N, 7.0112° E","sup_data":[]}'
-
-            // Testing no coords.
-            // response: '{"message":" Country: Norway\\nExplanation: The photo was taken on a bridge in Norway. The bridge is surrounded by mountains and there is a river running underneath it. The photo was taken in the fall, as the leaves on the trees are turning brown.\\nCoordinates: ","sup_data":[]}'
-
-            // Testing no country and no country.
-             response: '{"message":" Country: \\nExplanation: The photo was taken on a bridge in Norway. The bridge is surrounded by mountains and there is a river running underneath it. The photo was taken in the fall, as the leaves on the trees are turning brown.\\nCoordinates: ","sup_data":[]}'
-         }, curGuess);
-         return;
- */       
+        // Uncomment for mock testing
+        //  runMockResponseTests(curGuess);
+        //  return;
 
         imageUrlToBase64(0,0);
 
@@ -1485,6 +1455,10 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
             if (this.readyState == 4 && this.status == 200) {
                 clearInterval(_interval);
                 AIServerResponse(xmlr, curGuess); 
+            } else if (this.readyState == 4 && this.state == 500){
+                alert('status 500')
+                clearInterval(_interval);
+                handleBadResponse(xmlr, curGuess);
             }
         };
         
@@ -1509,9 +1483,9 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
         const resToJSON = JSON.parse(XMLHttpRequestObj.response);
 
         const errorRegExp_1 = new RegExp("There is not enough context in the photo to determine a location. Please try a more interesting photo", "is");
-
+        
         if (resToJSON?.error || errorRegExp_1.test(resToJSON?.message)){
-            handleBadResponse(resToJSON, curGuess);
+            handleBadResponse(XMLHttpRequestObj, curGuess);
             return;
         }
 
@@ -1558,17 +1532,14 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
         const DMSReg =/\d+°\d+'\d*\.?\d*/g; 
         const DDReg = /-?\d+[.°]?\d+′?/isg;
 
-        // First check for degrees, minutes, seconds
+        let countryLatLng = null;
+        // First check for degrees, minutes, seconds DMS
         let latLng = convertDMStoDD(resToJSON?.message?.match(DMSReg));
          
         latLng = latLng == null  
-                // Check for degrees.
-                ? resToJSON?.message?.match(DDReg)?.filter((num)=> parseFloat(num) < 180/*Can't be bigger than 180*/)
+                // Check for degrees. DD
+                ? resToJSON?.message?.match(DDReg)?.filter((num)=> Math.abs(parseFloat(num)) < 180/*Can't be bigger than 180 or less than -180*/)
                 : latLng;
-        
-        //latLng =  Array.isArray(latLng)? latLng.filter((num)=> parseFloat(num) < 180/*Can't be bigger than 180*/) : latLng;
-
-        let countryLatLng = null;
         
         if (latLng && Array.isArray(latLng) && latLng.length > 2){
             // Found too many coordinates, don't know which ones are legit.
@@ -1576,13 +1547,20 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
             latLng = null;
         }
 
-        if (latLng && Array.isArray(latLng) && /[°′]/g.test(latLng[0])){
+        if (latLng && Array.isArray(latLng) && latLng.length < 2){
+            // Not enough coordinates, need atleast two. 
+            // Player will have to sort it out.
+            latLng = null;
+        }
+        
+        if (latLng && Array.isArray(latLng) && latLng[0] && Math.abs(parseFloat(latLng[0])) > 85){
+           // latLng[0] (latitude) can't be greater than 85 or less than -85.
+           latLng = null; 
+        } 
+
+        if (latLng && Array.isArray(latLng)){
             // Check for ° and ′ symbols.
             latLng[0] = latLng[0].replace(/°/g, ".").replace(/′/g, "");
-        }
-
-        if (latLng && Array.isArray(latLng) && /[°′]/g.test(latLng[1])){
-            // Check for ° and ′ symbols.
             latLng[1] = latLng[1].replace(/°/g, ".").replace(/′/g, "");
         }
 
@@ -1592,17 +1570,26 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
         } else if (!latLng?.lat && !latLng?.lng && country){
             // Find coords for the country if lat lng can't be found.
             latLng = null;
-            const countryInfo = await fetch(`https://countryinfoapi.com/api/countries/name/${country}`).then( info => info.json());
-            countryLatLng = countryInfo.latlng; 
-            countryLatLng = { lat: parseFloat(countryLatLng[0]), lng: parseFloat(countryLatLng[1]) };
+            const countryInfo = await fetch(`https://countryinfoapi.com/api/countries/name/${country}`)
+                                      .then( info => info.json())
+                                      .catch(info => info);
+            countryLatLng = countryInfo?.latlng; 
+
+            if (!countryLatLng){
+                newAlert("Can't find any usefull location information in response.", false, "show an x");
+            } else{
+                countryLatLng = { lat: parseFloat(countryLatLng[0]), lng: parseFloat(countryLatLng[1]) };
+            }
         }
         
         return { latLng , countryLatLng };
     }
     
-    function handleBadResponse(resToJSON, curGuess){
+    function handleBadResponse(XMLHttpRequestObj, curGuess){
+        let resToJSON = JSON.parse(XMLHttpRequestObj.response);
+
         curGuess.json = {
-            message: resToJSON?.error || resToJSON?.message || "Something happened with response from server.",
+            message: resToJSON?.error || resToJSON?.message || "Error: Something happened, don't know what.",
         };
         curGuess.badResponse = true;
         curGuess.points = 0;
@@ -1658,6 +1645,39 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
         }
         
         return latLng;
+    }
+
+    function runMockResponseTests(curGuess){
+    /* Mock response for testing */
+    
+        AIServerResponse({
+        // Testing weird decimal coords with ′ symbol.
+        //response: `{"message":"Country: Sweden \\nCity: Sigtuna \\nExplanation: The architecture of the ... city. The coordinates of Sigtuna are 59°36′N 17°43′E."}`
+
+        // Testing minutes second coords
+        //response: '{"message": "Country: Indonesia\\nExplanation: The photo was taken in a rural area of Indonesia. The vegetation is lush and green, and the sky is cloudy. There are a few houses in the distance, and the road is unpaved. The coordinates of the photo are: 7°59\'59.9\\"S 112°34\'59.9\\"E.","sup_data":[]}'                                                                                                  
+
+        // Testing wierd decimal coords
+        //response: '{"message":" Country: Norway\\nExplanation: The photo was taken on a bridge in Norway. The ... turning brown.\\nCoordinates: 60.4739° N, 7.0112° E","sup_data":[]}'
+
+        // Testing wierd decimal coords and other numbers in response.
+        //response: '{"message":" Country: Norway\\nExplanation: The photo was taken on a bridge in Norway. house number 123 house number 984 The ... turning brown.\\nCoordinates: 60.4739° N, 7.0112° E","sup_data":[]}'
+
+        // Testing wierd decimal coords and other numbers in response. Latitude is over 85.
+        // response: '{"message":" Country: Norway\\nExplanation: The photo was taken on a bridge in Norway. house number 234 house number 984 The ... turning brown.\\nCoordinates: 90.4739° N, 7.0112° E","sup_data":[]}'
+
+        // Not enough numbers  
+        //response: '{"message":" Country: Norway\\nExplanation: The photo was taken on a bridge in Norway. house number house number The ... turning brown.\\nCoordinates: 7.0112° E","sup_data":[]}'
+
+        // Not enough numbers and no country name
+         response: '{"message":" Country: unknown\\nExplanation: The photo was taken on a bridge in Norway. house number house number The ... turning brown.\\nCoordinates: 7.0112° E","sup_data":[]}'
+
+        // Testing no coords.
+        // response: '{"message":" Country: Norway\\nExplanation: The photo was taken on a bridge in Norway. The bridge is surrounded by mountains and there is a river running underneath it. The photo was taken in the fall, as the leaves on the trees are turning brown.\\nCoordinates: ","sup_data":[]}'
+
+        // Testing no country and no country.
+        //    response: '{"message":" Country: \\nExplanation: The photo was taken on a bridge in Norway. The bridge is surrounded by mountains and there is a river running underneath it. The photo was taken in the fall, as the leaves on the trees are turning brown.\\nCoordinates: ","sup_data":[]}'
+        }, curGuess);
     }
 
     window.fetch = (function () {
@@ -1817,6 +1837,7 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
     // TODO: remove delete everything below this line when uploading to github.
     //
 {
+    
 }
     //
     // To here. 
@@ -1825,7 +1846,7 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
 
 // For fixing common AI response error. Sometimes it doesn't put a negative sign in front of coordinates.
 const nwCountries = {};
-const nw = ["liberia", "caymen islands","haiti","the bahamas","wales","northern ireland","bonaire","jamaica","cuba","canada","mexico","usa","united states","guatemala","panama","colombia","ireland","portugal","senegal","costa rica","venezuela","suriname","puerto rico","dominican republic","guyana","french guiana","nicaragua","honduras","el salvador","belize","curaçao","aruba","virgin islands","british virgin islands","bermuda"];
+const nw = ["scotkand","liberia", "caymen islands","haiti","the bahamas","wales","northern ireland","bonaire","jamaica","cuba","canada","mexico","usa","united states","guatemala","panama","colombia","ireland","portugal","senegal","costa rica","venezuela","suriname","puerto rico","dominican republic","guyana","french guiana","nicaragua","honduras","el salvador","belize","curaçao","aruba","virgin islands","british virgin islands","bermuda"];
 nw.forEach(country => nwCountries[country] = true); 
 const swCountries = {};
 const sw =  ["chile","argentina","brazil","bolivia","ecuador","peru","uruguay","paraguay"];
@@ -1841,7 +1862,8 @@ document.head.insertAdjacentHTML(
             border-radius: 0px;
             translate: 0px 0px;
             animation: show 600ms 100ms cubic-bezier(0.38, 0.97, 0.56, 0.76) forwards;
-            background-color: #1f3246;
+            background-color: #1f3246f2;
+            backdrop-filter: blur(1.2px) saturate(10);
         }
         
         .gm-style .gm-style-iw-tc{
@@ -1851,7 +1873,8 @@ document.head.insertAdjacentHTML(
         .gm-style .gm-style-iw-tc::after{
             translate: 0px -15px;
             animation: show 300ms 0ms cubic-bezier(0.38, 0.97, 0.56, 0.76) forwards;
-            background-color: #1f3246;
+            background-color: #1f3246f2;
+            backdrop-filter: blur(1.2px) saturate(10);
         }
 
         @keyframes show {
@@ -1879,30 +1902,31 @@ document.head.insertAdjacentHTML(
             margin-bottom: 1rem;
             border: 1px solid transparent;
             border-radius: 0.25rem;
+            backdrop-filter: blur(1.2px) saturate(10);
         }
 
         .alert-info {
             color: #0c5460;
-            background-color: #d1ecf1;
-            border-color: #bee5eb;
+            background-color: #d1ecf1e6;
+            /*border-color: #bee5eb;*/
         }
 
         .alert-primary {
             color: #004085;
-            background-color: #cce5ff;
-            border-color: #b8daff;
+            background-color: #cce5ffe6;
+            /*border-color: #b8daff;*/
         }
 
         .alert-danger {
             color: #721c24;
-            background-color: #f8d7da;
-            border-color: #f5c6cb;
+            background-color: #f8d7dae6;
+            /*border-color: #f5c6cb;*/
         }
 
         .alert-success {
             color: #155724;
-            background-color: #d4edda;
-            border-color: #c3e6cb;
+            background-color: #d4eddae6;
+            /*border-color: #c3e6cb;*/
         }
     </style>`);
 
