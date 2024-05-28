@@ -1846,7 +1846,7 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
 
 // For fixing common AI response error. Sometimes it doesn't put a negative sign in front of coordinates.
 const nwCountries = {};
-const nw = ["scotkand","liberia", "caymen islands","haiti","the bahamas","wales","northern ireland","bonaire","jamaica","cuba","canada","mexico","usa","united states","guatemala","panama","colombia","ireland","portugal","senegal","costa rica","venezuela","suriname","puerto rico","dominican republic","guyana","french guiana","nicaragua","honduras","el salvador","belize","curaçao","aruba","virgin islands","british virgin islands","bermuda"];
+const nw = ["scotland","liberia", "caymen islands","haiti","the bahamas","wales","northern ireland","bonaire","jamaica","cuba","canada","mexico","usa","united states","guatemala","panama","colombia","ireland","portugal","senegal","costa rica","venezuela","suriname","puerto rico","dominican republic","guyana","french guiana","nicaragua","honduras","el salvador","belize","curaçao","aruba","virgin islands","british virgin islands","bermuda"];
 nw.forEach(country => nwCountries[country] = true); 
 const swCountries = {};
 const sw =  ["chile","argentina","brazil","bolivia","ecuador","peru","uruguay","paraguay"];
