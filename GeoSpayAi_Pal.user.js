@@ -2,7 +2,7 @@
 // @name         GeoSpy.ai Pal 
 // @description  Play GeoGuessr with an AI pal! 
 // @namespace    AI scripts 
-// @version      0.1.8
+// @version      0.1.9
 // @author       echandler
 // @match        https://www.geoguessr.com/*
 // @grant        none
@@ -319,10 +319,10 @@
     }
     
     function sv_position_changed(sv){
-//state.AI_PLAYER.rounds.pop();
-        const roundExists = state.AI_PLAYER.rounds[state?.gameInfo?.round-1];
 
-        if (state.curPanoId || (state.onResultPage && roundExists)) return;
+        const roundExists = state?.AI_PLAYER?.rounds[state?.gameInfo?.round-1];
+
+        if (state?.curPanoId || (state?.onResultPage && roundExists)) return;
 
         state.curPanoId = sv.getPano();
 
@@ -1809,7 +1809,7 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
     // TODO: remove delete everything below this line when uploading to github.
     //
 {
-   
+ 
 }
     //
     // To here. 
@@ -1904,7 +1904,6 @@ document.head.insertAdjacentHTML(
             /*border-color: #c3e6cb;*/
         }
     </style>`);
-
 
 function _distance(a, b){
     return distance(a.lat, a.lng, b.lat, b.lng);
