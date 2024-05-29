@@ -2,7 +2,7 @@
 // @name         GeoSpy.ai Pal 
 // @description  Play GeoGuessr with an AI pal! 
 // @namespace    AI scripts 
-// @version      0.1.7
+// @version      0.1.8
 // @author       echandler
 // @match        https://www.geoguessr.com/*
 // @grant        none
@@ -319,7 +319,10 @@
     }
     
     function sv_position_changed(sv){
-        if (state.curPanoId || state.onResultPage) return;
+//state.AI_PLAYER.rounds.pop();
+        const roundExists = state.AI_PLAYER.rounds[state?.gameInfo?.round-1];
+
+        if (state.curPanoId || (state.onResultPage && roundExists)) return;
 
         state.curPanoId = sv.getPano();
 
@@ -1036,7 +1039,8 @@
             el.appendChild(anchor4);
         } 
 
-        const neg = curGuess.latLngNeg;
+        const latNeg = curGuess.latNeg;
+        const lngNeg = curGuess.lngNeg;
         
         let _latLng = curGuess._latLng;
 
@@ -1053,8 +1057,8 @@
                                         padding: 5px; scrollbar-color: #475869 #1f3246; 
                                         scrollbar-width: thin;">${AIMsg}</pre>
                             Coordinates for calculating points: 
-                                <span ${_latLng ?`onclick="showAltsArray[${curGuess.curRound}]({lat:${_latLng.lat}, lng:${_latLng.lng}}, ${_id});"`:''} style="color:${neg ?"#1DF218": "#F2AC18"}" title="**Click for addition coordinate options** \nIf the coord is green: it was modified to address a common \nerror with the AI response and could be wrong." >
-                                    <span id="lat${_id}">${latLng.lat.toFixed(6)}</span>, <span id="lng${_id}">${latLng.lng.toFixed(6)}</span>
+                                <span ${_latLng ?`onclick="showAltsArray[${curGuess.curRound}]({lat:${_latLng.lat}, lng:${_latLng.lng}}, ${_id});"`:''} title="**Click for addition coordinate options** \nIf the coord is green: it was modified to address a common \nerror with the AI response and could be wrong." >
+                                    <span style="color:${latNeg ?"#1DF218": "#F2AC18"}" id="lat${_id}">${latLng.lat.toFixed(6)}</span>, <span style="color:${lngNeg ?"#1DF218": "#F2AC18"}" id="lng${_id}">${latLng.lng.toFixed(6)}</span>
                                 </span>
                                 <div id="showAlts${_id}"></div>
                                 ${isCountryLatLng ?`<div style="color: #1DF218;">Using generic country coordinates.</div>`:``}
@@ -1172,7 +1176,8 @@
                 curRound: el.curRound,
                 latLng : el.latLng,
                 _latLng: el._latLng,
-                latLngNeg: el.latLngNeg,
+                latNeg: el.latNeg,
+                lngNeg: el.lngNeg,
                 countryLatLng: el.countryLatLng,
                 points: el.points,
                 distance: el.distance,
@@ -1212,31 +1217,6 @@
     }
 
     cleanLocalStorage();
-
-    async function doSendToMapMaking(curGuess){
-        if (curGuess.badResponse) return;
-
-        const _points = d2p(curGuess.distance, 20037508.342789244);
-   
-        if (_points < 4850) return;
-
-        let deleteThis = (curGuess.mapMaker.id > -1)? curGuess.mapMaker.id : null;
-
-        const obj = { ...curGuess.mapMaker };
-        obj.tags = [...curGuess.mapMaker.tags];
-
-        const latLng = curGuess.latLng || curGuess._latLng || curGuess.countryLatLng;
-
-        obj.tags.push(JSON.stringify({msg: curGuess?.json?.message, pts: _points, latlng: latLng}));
-
-        let newId = await sendLocation(obj, curGuess.curRound, _points, deleteThis);
-
-        const id = curGuess.mapMaker.id;
-
-        curGuess.mapMaker.id = newId[id];
-
-        saveRounds();
-    }
 
     function isDuelsGame(){
         return /duels/.test(location.href);
@@ -1297,7 +1277,6 @@
         });
 
         if (!isDuelsGame() && state?.AI_PLAYER?.rounds[_round-1]?.state == 'Done'){
-                        
             curGuess = state?.AI_PLAYER?.rounds[_round-1];
 
             setTimeout(()=>{
@@ -1497,12 +1476,12 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
         curGuess.latLng = coords.latLng; 
          
         if (curGuess?.latLng?.lng > 0 && curGuess?.country && (nwCountries[curGuess?.country?.toLowerCase()] || swCountries[curGuess?.country?.toLowerCase()])){
-                curGuess.latLngNeg = true;
+                curGuess.lngNeg = true;
                 curGuess.latLng.lng = -curGuess.latLng.lng;        
         }
 
-        if (curGuess?.latLng?.lat > 0 && curGuess?.country && swCountries[curGuess?.country?.toLowerCase()]){
-                curGuess.latLngNeg = true;
+        if (curGuess?.latLng?.lat > 0 && curGuess?.country && (swCountries[curGuess?.country?.toLowerCase()] || seCountries[curGuess?.country?.toLowerCase()])){
+                curGuess.latNeg = true;
                 curGuess.latLng.lat = -curGuess.latLng.lat;        
         }
 
@@ -1570,7 +1549,7 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
         } else if (!latLng?.lat && !latLng?.lng && country){
             // Find coords for the country if lat lng can't be found.
             latLng = null;
-            const countryInfo = await fetch(`https://countryinfoapi.com/api/countries/name/${country}`)
+            const countryInfo = await fetch(`https://countryinfoapi.com/api/countries/name/${country}?fields=latlng`)
                                       .then( info => info.json())
                                       .catch(info => info);
             countryLatLng = countryInfo?.latlng; 
@@ -1826,18 +1805,11 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
             };
        }
 
-    async function sendLocation(location, round, points, deleteThis){
-        let confiRm = confirm(`Send round #${round}, with ${points} pts, to map-making.app?`);
-        if (!confiRm) return;
-
-        return importLocations( mapIdMapMakingApp, [location], (deleteThis? [deleteThis] : []));
-    }
-
     //
     // TODO: remove delete everything below this line when uploading to github.
     //
 {
-    
+   
 }
     //
     // To here. 
@@ -1846,11 +1818,14 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
 
 // For fixing common AI response error. Sometimes it doesn't put a negative sign in front of coordinates.
 const nwCountries = {};
-const nw = ["scotland","liberia", "caymen islands","haiti","the bahamas","wales","northern ireland","bonaire","jamaica","cuba","canada","mexico","usa","united states","guatemala","panama","colombia","ireland","portugal","senegal","costa rica","venezuela","suriname","puerto rico","dominican republic","guyana","french guiana","nicaragua","honduras","el salvador","belize","curaçao","aruba","virgin islands","british virgin islands","bermuda"];
+const nw = ["scotkand","liberia", "caymen islands","haiti","the bahamas","wales","northern ireland","bonaire","jamaica","cuba","canada","mexico","usa","united states","guatemala","panama","colombia","ireland","portugal","senegal","costa rica","venezuela","suriname","puerto rico","dominican republic","guyana","french guiana","nicaragua","honduras","el salvador","belize","curaçao","aruba","virgin islands","british virgin islands","bermuda"];
 nw.forEach(country => nwCountries[country] = true); 
 const swCountries = {};
 const sw =  ["chile","argentina","brazil","bolivia","ecuador","peru","uruguay","paraguay"];
 sw.forEach(country => swCountries[country] = true); 
+const seCountries = {};
+const se =  ["australia", "new zealand","south africa", "lesotho","eswatini", "madagascar"];
+se.forEach(country => seCountries[country] = true); 
 
 document.head.insertAdjacentHTML(
     // Append style sheet for this script. 
@@ -1961,35 +1936,3 @@ function distanceInPx(map, marker1, marker2) {
     return d;
 }
 
-async function importLocations(mapId, addLocs = [], removeLocs = []) {
-	const response = await fetch(`https://map-making.app/api/maps/${mapId}/locations`, {
-		method: 'post',
-		headers: {
-			accept: 'application/json',
-			authorization: `API ${window.MAP_MAKING_API_KEY.trim()}`,
-			'content-type': 'application/json'
-		},
-		body: JSON.stringify({
-			edits: [{
-				action: { type: 4 }, // 4
-				create: addLocs,
-				remove: removeLocs 
-			}]
-		})
-	});
-
-	if (!response.ok) {
-		let message = 'Unknown error';
-		try {
-			const res = await response.json();
-			if (res.message) {
-				message = res.message;
-			}
-		} catch {
-		}
-		alert(`An error occurred while trying to connect to Map Making App. ${message}`);
-		throw Object.assign(new Error(message), { response });
-	}
-
-	return await response.json();
-}
