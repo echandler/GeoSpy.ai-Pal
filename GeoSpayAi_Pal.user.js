@@ -2,7 +2,7 @@
 // @name         GeoSpy.ai Pal 
 // @description  Play GeoGuessr with an AI pal! 
 // @namespace    AI scripts 
-// @version      0.1.9
+// @version      0.2.0
 // @author       echandler
 // @match        https://www.geoguessr.com/*
 // @grant        none
@@ -318,9 +318,18 @@
      // google.maps.event.addListener(state.GoogleMapsObj, "AI response finished", forTesting.putMarkerOnMap);
     }
     
+    let prevPanoId = null;
+    
     function sv_position_changed(sv){
-
+//state.AI_PLAYER.rounds.pop();
         const roundExists = state?.AI_PLAYER?.rounds[state?.gameInfo?.round-1];
+        const curPanoId = sv.getPano();
+
+        if (curPanoId === prevPanoId){
+            return;
+        } 
+
+        prevPanoId = curPanoId;
 
         if (state?.curPanoId || (state?.onResultPage && roundExists)) return;
 
@@ -1293,7 +1302,7 @@
             _canvas.setAttribute('width', "8192");
             _canvas.setAttribute('height', "4096");
             _canvas.style.position = 'absolute';
-            _canvas.style.left = "-9999999px";
+           // _canvas.style.left = "-9999999px";
             document.body.appendChild(_canvas);
         }
 
@@ -1809,7 +1818,7 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
     // TODO: remove delete everything below this line when uploading to github.
     //
 {
- 
+   
 }
     //
     // To here. 
@@ -1818,7 +1827,7 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
 
 // For fixing common AI response error. Sometimes it doesn't put a negative sign in front of coordinates.
 const nwCountries = {};
-const nw = ["scotkand","liberia", "caymen islands","haiti","the bahamas","wales","northern ireland","bonaire","jamaica","cuba","canada","mexico","usa","united states","guatemala","panama","colombia","ireland","portugal","senegal","costa rica","venezuela","suriname","puerto rico","dominican republic","guyana","french guiana","nicaragua","honduras","el salvador","belize","curaçao","aruba","virgin islands","british virgin islands","bermuda"];
+const nw = ["dominica", "scotland","liberia", "caymen islands","haiti","the bahamas","wales","northern ireland","bonaire","jamaica","cuba","canada","mexico","usa","united states","guatemala","panama","colombia","ireland","portugal","senegal","costa rica","venezuela","suriname","puerto rico","dominican republic","guyana","french guiana","nicaragua","honduras","el salvador","belize","curaçao","aruba","virgin islands","british virgin islands","bermuda"];
 nw.forEach(country => nwCountries[country] = true); 
 const swCountries = {};
 const sw =  ["chile","argentina","brazil","bolivia","ecuador","peru","uruguay","paraguay"];
