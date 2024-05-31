@@ -2,7 +2,7 @@
 // @name         GeoSpy.ai Pal 
 // @description  Play GeoGuessr with an AI pal! 
 // @namespace    AI scripts 
-// @version      0.2.0
+// @version      0.2.1
 // @author       echandler
 // @match        https://www.geoguessr.com/*
 // @grant        none
@@ -1302,7 +1302,7 @@
             _canvas.setAttribute('width', "8192");
             _canvas.setAttribute('height', "4096");
             _canvas.style.position = 'absolute';
-           // _canvas.style.left = "-9999999px";
+            _canvas.style.left = "-9999999px";
             document.body.appendChild(_canvas);
         }
 
@@ -1443,8 +1443,8 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
             if (this.readyState == 4 && this.status == 200) {
                 clearInterval(_interval);
                 AIServerResponse(xmlr, curGuess); 
-            } else if (this.readyState == 4 && this.state == 500){
-                alert('status 500')
+            } else if (this.status == 500){
+                console.log(this.readyState, this.status);
                 clearInterval(_interval);
                 handleBadResponse(xmlr, curGuess);
             }
@@ -1702,6 +1702,7 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
 
         const body = document.createElement('div');
         body.style.cssText = `position: absolute; left: -22em;  padding: 10px; transition: 1s ease-in-out all; font-size: 18px; font-family: var(--default-font); z-index: 999999;`;
+
         if (!check && !x){
             body.classList.add("alert-primary");
         } else if (check){
@@ -1717,8 +1718,7 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
 
         ar.push(body);
 
-        setTimeout(()=>{
-
+        setTimeout(function moveItFromLeftIntoViewPort(){
             let p = 0;
             ar.forEach((el, idx)=>{
                 if (el._removed) return;
@@ -1727,92 +1727,90 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
                 p++;
             });
 
-             setTimeout(()=>{
-                     body.style.top ="-10em";
-                     body.style.opacity = '0';
-                     body._removed = true;
-                     let p = 0;
-                     ar.forEach((el)=>{
-                         if (el._removed) return;
-                         el.style.top = (p + 1)* 3 + 'em';
-                         p++;
-                     });
-                     setTimeout(()=>{ body.remove(); }, 1200);
-                 }, 4000);
-            }, 100);
-       }
-
-       async function shootTarget(start, target){
-            const pixel_dist = await new Promise((res, reg) =>{
-                const __inter = setInterval(() => {
-                    // On refresh distanceInPx() might not work until the map is zoomed.
-                    const dist = distanceInPx(state.GoogleMapsObj, start, target);
-                    if (dist == null) return;
-                    clearInterval(__inter);
-                    res(dist);
-                }, 500);
-            });
-
-            if (pixel_dist < 300) return;
-
-            const dist = window.innerWidth;
-
-            const lineSymbol = {
-                //path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, // "M 0,-1 0,1",
-                path: "m25,1 6,17h18l-14,11 5,17-15-10-15,10 5-17-14-11h18z",
-                strokeOpacity: 1,
-                fillOpacity: 1,
-                scale: 0.25,
-            };
-            
-            for (let n = 0; n < 3; n++){
+            setTimeout(function moveUpOutOfViewPort(){
+                body.style.top ="-10em";
+                body.style.opacity = '0';
+                body._removed = true;
                 let p = 0;
+                ar.forEach((el)=>{
+                    if (el._removed) return;
+                    el.style.top = (p + 1)* 3 + 'em';
+                    p++;
+                });
 
-                setTimeout(()=>{
-                    let offset = 0;
+                setTimeout(function removeItFromDom(){ 
+                    body.remove(); 
+                }, 1200);
+            }, 4000);
+        }, 100);
+    }
 
-                    const line = new google.maps.Polyline({
-                            path: [start, target],
-                            strokeColor: '#243147', //"#fb443b", // "#fb443b" Red marker color
-                            fillColor: '#243147',// "red",
-                            strokeOpacity: 0,
-                            fillOpacity: 1,
-                            icons: [
-                                {
-                                    icon: lineSymbol,
-                                    offset: offset + "px",
-                                    repeat: dist * 2 + "px",
-                                    fillColor: "red",
-                                },
-                            ],
-                            map: state.GoogleMapsObj,
-                        });
+    async function shootTarget(start, target){
+        const pixel_dist = await new Promise((res, reg) =>{
+            const __inter = setInterval(() => {
+                // On refresh distanceInPx() might not work until the map is zoomed.
+                const dist = distanceInPx(state.GoogleMapsObj, start, target);
+                if (dist == null) return;
+                clearInterval(__inter);
+                res(dist);
+            }, 500);
+        });
 
-                    function frames(){
-                        if (offset > dist) { 
-                            line?.setMap(null);
-                            return;
-                        }
+        if (pixel_dist < 300) return;
 
-                        offset += 10;
+        const dist = window.innerWidth;
 
-                        const icons = line.get('icons');
-                        icons[0].offset = offset + "px";
-                        line.set('icons', icons);
+        const lineSymbol = {
+            //path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, // "M 0,-1 0,1",
+            path: "m25,1 6,17h18l-14,11 5,17-15-10-15,10 5-17-14-11h18z",
+            strokeOpacity: 1,
+            fillOpacity: 1,
+            scale: 0.25,
+        };
+        
+        for (let n = 0; n < 3; n++){
+            let p = 0;
 
-                        requestAnimationFrame(frames);
+            setTimeout(()=>{
+                let offset = 0;
+
+                const line = new google.maps.Polyline({
+                        path: [start, target],
+                        strokeColor: '#243147', //"#fb443b", // "#fb443b" Red marker color
+                        fillColor: '#243147',// "red",
+                        strokeOpacity: 0,
+                        fillOpacity: 1,
+                        icons: [
+                            {
+                                icon: lineSymbol,
+                                offset: offset + "px",
+                                repeat: dist * 2 + "px",
+                                fillColor: "red",
+                            },
+                        ],
+                        map: state.GoogleMapsObj,
+                    });
+
+                function frames(){
+                    if (offset > dist) { 
+                        line?.setMap(null);
+                        return;
                     }
-                    frames();
-                }, n * 500);
-            }
-            return { 
-                destroy: ()=> {
-                    return;
-                    line.setMap(null); 
-                    clearInterval(inter);
+
+                    offset += 10;
+
+                    const icons = line.get('icons');
+                    icons[0].offset = offset + "px";
+                    line.set('icons', icons);
+
+                    requestAnimationFrame(frames);
                 }
-            };
-       }
+                frames();
+            }, n * 500);
+        }
+
+        return; 
+    }
 
     //
     // TODO: remove delete everything below this line when uploading to github.
