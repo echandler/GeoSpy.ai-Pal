@@ -2,7 +2,7 @@
 // @name         GeoSpy.ai Pal 
 // @description  Play GeoGuessr with an AI pal! 
 // @namespace    AI scripts 
-// @version      0.2.1
+// @version      0.2.2
 // @author       echandler
 // @match        https://www.geoguessr.com/*
 // @grant        none
@@ -1256,8 +1256,8 @@
         let curGuess = { 
             state: "Downloading Panorama", 
             svPos: state.svPlayer.position.toJSON(), 
-            curRound : _round? _round: null, 
-            curMapId : getMapId(),
+            curRound: _round? _round: null, 
+            curMapId: getMapId(),
             mapMaker: 	{
                 id: -1,
                 location: state.svPlayer.position.toJSON(),
@@ -1292,6 +1292,10 @@
                 // talkToAi gets called before the page is done loading.
                 newAlert(`Retrieved saved information for round #${_round}!`, "check");
                 getReadyForResultPage(curGuess);
+
+                if (!state.onResultPage && state?.gameInfo?.round === curGuess.curRound){
+                    showCheckOrX(false);
+                }
             }, 1000);
             return;
         }
@@ -1418,6 +1422,7 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
         }
 
         function dataURLtoFile(dataurl, filename) {
+            console.log(dataurl)
             var arr = dataurl.split(','),
                 mime = arr[0].match(/:(.*?);/)[1],
                 bstr = atob(arr[arr.length - 1]),
@@ -1443,7 +1448,8 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
             if (this.readyState == 4 && this.status == 200) {
                 clearInterval(_interval);
                 AIServerResponse(xmlr, curGuess); 
-            } else if (this.status == 500){
+            } else if (this.readyState == 4 && this.status == 500){
+                alert('There was an error with the AI server: status 500.')
                 console.log(this.readyState, this.status);
                 clearInterval(_interval);
                 handleBadResponse(xmlr, curGuess);
@@ -1493,6 +1499,15 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
                 curGuess.latNeg = true;
                 curGuess.latLng.lat = -curGuess.latLng.lat;        
         }
+        
+        if (curGuess?.latLng && curGuess?.country && curGuess.country.toLowerCase() === "indonesia"){
+            // Indonesia is a special case
+            const tipOfWeIsland = 5.911517;
+            if (curGuess.latLng.lat > tipOfWeIsland){
+                curGuess.latNeg = true;
+                curGuess.latLng.lat = -curGuess.latLng.lat;        
+            }
+        }
 
         curGuess._latLng = coords.latLng; 
 
@@ -1502,7 +1517,7 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
 
         curGuess.state = "Done";
 
-        newAlert(`AI has returned an answer for round #${curGuess.curRound}!`, "check");
+        const p = newAlert(`AI has returned an answer for round #${curGuess.curRound}!`, "check");
 
         getReadyForResultPage(curGuess);
     }
@@ -1514,6 +1529,27 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
         });
 
         google.maps.event.trigger(state.GoogleMapsObj, "AI response finished", curGuess);
+
+        if (!state.onResultPage && state?.gameInfo?.round === curGuess.curRound){
+            showCheckOrX(false);
+        }
+    }
+    
+    function showCheckOrX(showX){
+        const _check = `<span style="color: green;">&#10004;</span>`;
+        const _x = `<span style="color: red;">&#10006;</span>`;
+
+        let div = document.createElement('div');
+        div.style.cssText = `position: absolute; top: 0em; left: 0em;`;
+        div.title = `Done interacting with AI.`;
+        div.innerHTML = showX ? _x : _check;
+
+        document.body.appendChild(div);
+
+        const listener1 = google.maps.event.addListener(state.GoogleMapsObj, "result page", function(){
+            google.maps.event.removeListener(listener1);
+            div.remove();
+        });
     }
 
     async function getCoords(resToJSON, country){
@@ -1595,7 +1631,11 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
 
         newAlert(`AI has returned an answer for round #${curGuess.curRound}!`, false, "x");
 
-        console.log("AI Didn't like image curGuess", curGuess);
+        console.log("AI didn't return a good response", curGuess);
+        
+        if (!state.onResultPage && state?.gameInfo?.round === curGuess.curRound){
+            showCheckOrX(true);
+        }
     }
 
     function convertDMStoDD(latLng_array){
@@ -1701,7 +1741,7 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
         const _x = `<span style="color: red;">&#10006;</span>`;
 
         const body = document.createElement('div');
-        body.style.cssText = `position: absolute; left: -22em;  padding: 10px; transition: 1s ease-in-out all; font-size: 18px; font-family: var(--default-font); z-index: 999999;`;
+        body.style.cssText = `position: absolute; left: -22em;  padding: 0.5em; transition: 1s ease-in-out all; font-size: 16px; font-family: var(--default-font); z-index: 999999;`;
 
         if (!check && !x){
             body.classList.add("alert-primary");
@@ -1717,17 +1757,19 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
         document.body.appendChild(body);
 
         ar.push(body);
-
-        setTimeout(function moveItFromLeftIntoViewPort(){
-            let p = 0;
-            ar.forEach((el, idx)=>{
-                if (el._removed) return;
-                el.style.top = (p + 1)* 3 + 'em';
-                el.style.left = "2em";
-                p++;
-            });
-
-            setTimeout(function moveUpOutOfViewPort(){
+        
+        const obj ={
+           body: body,
+           stage1: function moveItFromLeftIntoViewPort(){
+                    let p = 0;
+                    ar.forEach((el, idx)=>{
+                        if (el._removed) return;
+                        el.style.top = (p + 1)* 3 + 'em';
+                        el.style.left = "2em";
+                        p++;
+                    })
+                },
+           stage2: function moveUpOutOfViewPort(){
                 body.style.top ="-10em";
                 body.style.opacity = '0';
                 body._removed = true;
@@ -1736,13 +1778,53 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
                     if (el._removed) return;
                     el.style.top = (p + 1)* 3 + 'em';
                     p++;
-                });
-
-                setTimeout(function removeItFromDom(){ 
+                })
+            },
+           stage3: function removeItFromDom(){ 
                     body.remove(); 
+                },
+        };
+
+//        setTimeout(function moveItFromLeftIntoViewPort(){
+//            let p = 0;
+//            ar.forEach((el, idx)=>{
+//                if (el._removed) return;
+//                el.style.top = (p + 1)* 3 + 'em';
+//                el.style.left = "2em";
+//                p++;
+//            });
+//
+//            setTimeout(function moveUpOutOfViewPort(){
+//                body.style.top ="-10em";
+//                body.style.opacity = '0';
+//                body._removed = true;
+//                let p = 0;
+//                ar.forEach((el)=>{
+//                    if (el._removed) return;
+//                    el.style.top = (p + 1)* 3 + 'em';
+//                    p++;
+//                });
+//
+//                setTimeout(function removeItFromDom(){ 
+//                    body.remove(); 
+//                }, 1200);
+//            }, 4000);
+//        }, 100);
+
+        setTimeout(function() {
+            obj.stage1();
+
+            setTimeout(function (){
+                obj.stage2();
+
+                setTimeout(function (){ 
+                    obj.stage3();
+
                 }, 1200);
             }, 4000);
         }, 100);
+    
+        return obj;
     }
 
     async function shootTarget(start, target){
@@ -1816,7 +1898,7 @@ content-disposition: form-data; name="image"; filename="test image uk.jpeg"
     // TODO: remove delete everything below this line when uploading to github.
     //
 {
-   
+    
 }
     //
     // To here. 
